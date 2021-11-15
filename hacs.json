@@ -1,0 +1,6 @@
+{
+  "country": ["RU"],
+  "homeassistant": "2021.7",
+  "name": "Yandex.Station Intents",
+  "render_readme": true
+}

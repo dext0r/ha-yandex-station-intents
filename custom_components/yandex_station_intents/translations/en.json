@@ -1,0 +1,41 @@
+{
+  "config": {
+    "abort": {
+      "account_updated": "Данные обновлены, перезапустите Home Assistant",
+      "single_instance_allowed": "Разрешена только одна настройка Yandex.Station Intents",
+      "install_yandex_station": "Чтобы воспользоваться этим способом авторизации установите и настройте интеграцию [Yandex.Station](https://github.com/AlexxIT/YandexStation)"
+    },
+    "error": {
+      "cookies.invalid_format": "Это не похоже на JSON из расширения Copy Cookies",
+      "auth.error": "Ошибка авторизации, проверьте журнал Home Assistant"
+    },
+    "step": {
+      "user": {
+        "title": "Выберите способ авторизации",
+        "data": {
+          "method": "Способ авторизации"
+        }
+      },
+      "cookies": {
+        "title": "Авторизация через cookies",
+        "description": "* Установите расширение [Copy Cookies](https://chrome.google.com/webstore/detail/copy-cookies/jcbpglbplpblnagieibnemmkiamekcdg) в Google Chrome или Yandex Browser\n* Авторизуйтесь на [yandex.passport.com](https://passport.yandex.com/profile) (обязательно **.com**)\n* Скопируйте сюда cookies с помощью расширения",
+        "data": {
+          "cookies": "Cookies JSON"
+        }
+      },
+      "token": {
+        "title": "Авторизация через токен",
+        "description": "Вы можете перенести токен с другого сервера Home Assistant или компонента Yandex Station. Его можно найти в файле `/config/.storage/core.config_entries` (ищите по `x_token`)",
+        "data": {
+          "token": "Токен"
+        }
+      },
+      "yandex_station": {
+        "title": "Авторизация через Yandex.Station",
+        "data": {
+          "account": "Аккаунт Яндекса"
+        }
+      }
+    }
+  }
+}
