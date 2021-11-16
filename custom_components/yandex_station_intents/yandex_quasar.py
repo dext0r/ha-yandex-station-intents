@@ -253,7 +253,8 @@ class EventStream:
             _LOGGER.exception('Неожиданное исключение')
             self._try_reconnect()
 
-        self._try_reconnect()
+        if self._ws_active:
+            self._try_reconnect()
 
     async def disconnect(self, *_):
         self._ws_active = False
