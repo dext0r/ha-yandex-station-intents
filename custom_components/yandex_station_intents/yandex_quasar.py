@@ -221,16 +221,16 @@ class EventStream:
         if not self._ws_active:
             return
 
-        r = await self._session.get('https://iot.quasar.yandex.ru/m/v3/user/devices')
-        resp = await r.json()
-        assert resp['status'] == 'ok', resp
-
-        url = resp['updates_url']
-
         # noinspection PyBroadException
         try:
+            r = await self._session.get('https://iot.quasar.yandex.ru/m/v3/user/devices')
+            resp = await r.json()
+            assert resp['status'] == 'ok', resp
+
+            url = resp['updates_url']
+
             _LOGGER.debug(f'Подключение к {url}')
-            self._ws = await self._session.ws_connect(url, heartbeat=60)
+            self._ws = await self._session.ws_connect(url, heartbeat=45)
 
             _LOGGER.debug('Подключение к УДЯ установлено')
             self._ws_reconnect_delay = DEFAULT_RECONNECTION_DELAY
@@ -251,9 +251,6 @@ class EventStream:
             self._try_reconnect()
         except Exception:
             _LOGGER.exception('Неожиданное исключение')
-            self._try_reconnect()
-
-        if self._ws_active:
             self._try_reconnect()
 
     async def disconnect(self, *_):

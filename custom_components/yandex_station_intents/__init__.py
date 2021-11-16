@@ -90,17 +90,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
     _async_update_config_entry_from_yaml(hass, entry, yaml_config)
     session = YandexSession(hass, entry)
-    if not await session.refresh_cookies():
-        hass.components.persistent_notification.async_create(
-            'Необходимо заново авторизоваться в Яндексе. Для этого удалите интеграцию и [добавьте '
-            'снова](/config/integrations).',
-            title=NOTIFICATION_TITLE
-        )
-        return False
+    try:
+        if not await session.refresh_cookies():
+            hass.components.persistent_notification.async_create(
+                'Необходимо заново авторизоваться в Яндексе. Для этого удалите интеграцию и [добавьте '
+                'снова](/config/integrations).',
+                title=NOTIFICATION_TITLE
+            )
+            return False
 
-    manager = IntentManager(hass, entry)
-    quasar = YandexQuasar(session)
-    await quasar.async_init()
+        manager = IntentManager(hass, entry)
+        quasar = YandexQuasar(session)
+        await quasar.async_init()
+    except Exception as e:
+        raise ConfigEntryNotReady(e)
 
     hass.data[DOMAIN][entry.entry_id] = {
         DATA_QUASAR: quasar,
