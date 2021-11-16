@@ -9,6 +9,8 @@ from aiohttp import ClientConnectorError, ClientResponseError, ClientWebSocketRe
 from homeassistant.components import media_player
 from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry
+from homeassistant.helpers.entity_registry import EntityRegistry
 from homeassistant.helpers.event import async_call_later
 
 from .const import INTENT_ID_MARKER, INTENT_PLAYER_NAME, STATION_STUB_COMMAND
@@ -206,10 +208,14 @@ class EventStream:
         self._session = session
         self._quasar = quasar
         self._manager = intent_manager
+        self._entity_registry: EntityRegistry | None = None
 
         self._ws: ClientWebSocketResponse | None = None
         self._ws_reconnect_delay = DEFAULT_RECONNECTION_DELAY
         self._ws_active = True
+
+    async def async_init(self):
+        self._entity_registry = await entity_registry.async_get_registry(self._hass)
 
     async def connect(self, *_):
         if not self._ws_active:
@@ -283,15 +289,20 @@ class EventStream:
                         if device.id != dev['id'] or not device.yandex_station_id:
                             continue
 
-                        entity_id = f'{media_player.DOMAIN}.yandex_station_{device.yandex_station_id.lower()}'
-                        state = self._hass.states.get(entity_id)
-                        if not state:
+                        phrase = cap_state['value']
+                        entity_id = self._entity_registry.async_get_entity_id(
+                            media_player.DOMAIN,
+                            'yandex_station',
+                            device.yandex_station_id
+                        )
+                        if not entity_id:
+                            _LOGGER.debug(f'Ignoring intent {phrase!r}, speaker {device.yandex_station_id} not found')
                             continue
 
                         event_data = {
-                            ATTR_ENTITY_ID: state.entity_id
+                            ATTR_ENTITY_ID: entity_id
                         }
                         if device.room:
                             event_data['room'] = device.room
 
-                        self._manager.event_from_phrase(cap_state['value'], event_data)
+                        self._manager.event_from_phrase(phrase, event_data)

@@ -123,6 +123,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         hass.loop.create_task(_async_setup_intents(manager.intents, quasar, device_id))
     else:
         event_stream = EventStream(hass, session, quasar, manager)
+        await event_stream.async_init()
         hass.data[DOMAIN][entry.entry_id][DATA_EVENT_STREAM] = event_stream
 
         hass.loop.create_task(_async_setup_intents(manager.intents, quasar))
