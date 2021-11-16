@@ -45,7 +45,7 @@ class Intent:
 
 
 class BaseConverter:
-    _base_chars = ',.:='
+    _base_chars = ',.:'
     _digits = '01234567890'
 
     @classmethod
