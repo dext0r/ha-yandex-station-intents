@@ -269,7 +269,7 @@ class EventStream:
             return
 
         message = json.loads(payload['message'])
-        for dev in message['updated_devices']:
+        for dev in message.get('updated_devices', []):
             if not dev.get('capabilities'):
                 continue
 
