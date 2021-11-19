@@ -265,7 +265,7 @@ class EventStream:
         async_call_later(self._hass, self._ws_reconnect_delay, self.connect)
 
     async def _on_message(self, payload: dict[Any, Any]):
-        if not payload.get('message'):
+        if payload.get('operation') != 'update_states':
             return
 
         message = json.loads(payload['message'])
