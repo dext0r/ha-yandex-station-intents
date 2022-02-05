@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from typing import Final
 
 from homeassistant.components import media_player
@@ -46,14 +47,22 @@ def intent_config_validate(intent_config):
     return intent_config
 
 
+def intent_name_validate(name: str) -> str:
+    if not re.search(r'^[а-я0-9 ]+$', name, re.IGNORECASE):
+        _LOGGER.error(f'Недопустимая фраза {name!r}: разрешены только кириллица, цифры и пробелы')
+        raise vol.Invalid('Разрешены только кириллица, цифры и пробелы')
+
+    return name
+
+
 CONFIG_SCHEMA = vol.Schema({
     DOMAIN: vol.Schema({
-        vol.Optional(CONF_INTENTS, default={}): {
-            cv.string: vol.All(intent_config_validate, vol.Schema({
-                vol.Optional(CONF_INTENT_EXTRA_PHRASES): [cv.string],
+        vol.Optional(CONF_INTENTS, default={}): vol.Schema({
+            vol.All(cv.string, intent_name_validate): vol.All(intent_config_validate, vol.Schema({
+                vol.Optional(CONF_INTENT_EXTRA_PHRASES): [vol.All(cv.string, intent_name_validate)],
                 vol.Optional(CONF_INTENT_SAY_PHRASE): cv.string
             })),
-        },
+        }),
         vol.Optional(CONF_MODE, default=MODE_WEBSOCKET): vol.In([MODE_WEBSOCKET, MODE_DEVICE])
     }, extra=vol.ALLOW_EXTRA),
 }, extra=vol.ALLOW_EXTRA)
