@@ -83,9 +83,9 @@ class YandexSession:
             self._x_token = entry.data.get(CONF_X_TOKEN)
 
             cookie = entry.data.get(CONF_COOKIE)
-            if entry.data.get(cookie):
+            if cookie:
                 raw = base64.b64decode(cookie)
-                self._session.cookie_jar._cookie = pickle.loads(raw)
+                self._session.cookie_jar._cookies = pickle.loads(raw)
 
     async def login_cookies(self, cookies: dict[str, str]):
         payload = {
