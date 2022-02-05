@@ -5,6 +5,7 @@ CONF_INTENTS = 'intents'
 CONF_INTENT_EXTRA_PHRASES = 'extra_phrases'
 CONF_INTENT_SAY_PHRASE = 'say_phrase'
 CONF_MODE = 'mode'
+CONF_AUTOSYNC = 'autosync'
 CONF_X_TOKEN = 'x_token'
 CONF_COOKIE = 'cookie'
 

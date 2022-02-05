@@ -16,6 +16,7 @@ from homeassistant.helpers.typing import ConfigType
 import voluptuous as vol
 
 from .const import (
+    CONF_AUTOSYNC,
     CONF_INTENT_EXTRA_PHRASES,
     CONF_INTENT_SAY_PHRASE,
     CONF_INTENTS,
@@ -63,7 +64,8 @@ CONFIG_SCHEMA = vol.Schema({
                 vol.Optional(CONF_INTENT_SAY_PHRASE): cv.string
             })),
         }),
-        vol.Optional(CONF_MODE, default=MODE_WEBSOCKET): vol.In([MODE_WEBSOCKET, MODE_DEVICE])
+        vol.Optional(CONF_MODE, default=MODE_WEBSOCKET): vol.In([MODE_WEBSOCKET, MODE_DEVICE]),
+        vol.Optional(CONF_AUTOSYNC, default=True): cv.boolean
     }, extra=vol.ALLOW_EXTRA),
 }, extra=vol.ALLOW_EXTRA)
 
@@ -71,7 +73,7 @@ CONFIG_SCHEMA = vol.Schema({
 async def async_setup(hass: HomeAssistant, _: dict):
     hass.data[DOMAIN] = {}
 
-    async def _handle_reload(*_):
+    async def _handle_reload(_: ServiceCall):
         current_entries = hass.config_entries.async_entries(DOMAIN)
         reload_tasks = [
             hass.config_entries.async_reload(entry.entry_id)
@@ -79,6 +81,12 @@ async def async_setup(hass: HomeAssistant, _: dict):
         ]
 
         await asyncio.gather(*reload_tasks)
+
+        for entry in hass.config_entries.async_entries(DOMAIN):
+            if not entry.data[CONF_AUTOSYNC]:
+                quasar = hass.data[DOMAIN][entry.entry_id][DATA_QUASAR]
+                manager = hass.data[DOMAIN][entry.entry_id][DATA_INTENT_MANAGER]
+                await _async_setup_intents(manager.intents, quasar)
 
     hass.helpers.service.async_register_admin_service(DOMAIN, SERVICE_RELOAD, _handle_reload)
 
@@ -138,13 +146,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         await event_stream.async_init()
         hass.data[DOMAIN][entry.entry_id][DATA_EVENT_STREAM] = event_stream
 
-        hass.loop.create_task(_async_setup_intents(manager.intents, quasar))
         hass.loop.create_task(event_stream.connect())
         entry.async_on_unload(
             hass.bus.async_listen_once(
                 EVENT_HOMEASSISTANT_STOP, event_stream.disconnect
             )
         )
+
+        if entry.data[CONF_AUTOSYNC]:
+            hass.loop.create_task(_async_setup_intents(manager.intents, quasar))
 
     return True
 
@@ -174,7 +184,11 @@ def _async_update_config_entry_from_yaml(hass: HomeAssistant, entry: ConfigEntry
     if DOMAIN in yaml_config:
         data.update(yaml_config[DOMAIN])
     else:
-        data.update({CONF_INTENTS: {}, CONF_MODE: MODE_WEBSOCKET})
+        data.update({
+            CONF_INTENTS: {},
+            CONF_MODE: MODE_WEBSOCKET,
+            CONF_AUTOSYNC: True
+        })
 
     hass.config_entries.async_update_entry(entry, data=data)
 
