@@ -49,7 +49,7 @@ def intent_config_validate(intent_config):
 
 
 def intent_name_validate(name: str) -> str:
-    if not re.search(r'^[а-я0-9 ]+$', name, re.IGNORECASE):
+    if not re.search(r'^[а-яё0-9 ]+$', name, re.IGNORECASE):
         _LOGGER.error(f'Недопустимая фраза {name!r}: разрешены только кириллица, цифры и пробелы')
         raise vol.Invalid('Разрешены только кириллица, цифры и пробелы')
 
