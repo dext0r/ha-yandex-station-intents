@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 import re
 from typing import Final
@@ -70,19 +69,16 @@ CONFIG_SCHEMA = vol.Schema({
 }, extra=vol.ALLOW_EXTRA)
 
 
-async def async_setup(hass: HomeAssistant, _: dict):
+async def async_setup(hass: HomeAssistant, yaml_config: ConfigType):
     hass.data[DOMAIN] = {}
 
     async def _handle_reload(_: ServiceCall):
-        current_entries = hass.config_entries.async_entries(DOMAIN)
-        reload_tasks = [
-            hass.config_entries.async_reload(entry.entry_id)
-            for entry in current_entries
-        ]
-
-        await asyncio.gather(*reload_tasks)
-
+        # не поддерживается несколько аккаунтов, поэтому линейно
         for entry in hass.config_entries.async_entries(DOMAIN):
+            config = await async_integration_yaml_config(hass, DOMAIN)
+            _async_update_config_entry_from_yaml(hass, entry, config)
+            await hass.config_entries.async_reload(entry.entry_id)
+
             if not entry.data[CONF_AUTOSYNC]:
                 quasar = hass.data[DOMAIN][entry.entry_id][DATA_QUASAR]
                 manager = hass.data[DOMAIN][entry.entry_id][DATA_INTENT_MANAGER]
@@ -97,15 +93,13 @@ async def async_setup(hass: HomeAssistant, _: dict):
 
     hass.services.async_register(DOMAIN, 'clear_scenarios', _clear_scenarios)
 
+    for config_entry in hass.config_entries.async_entries(DOMAIN):
+        _async_update_config_entry_from_yaml(hass, config_entry, yaml_config)
+
     return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
-    yaml_config = await async_integration_yaml_config(hass, DOMAIN)
-    if yaml_config is None:
-        raise ConfigEntryNotReady('Configuration is missing or invalid')
-
-    _async_update_config_entry_from_yaml(hass, entry, yaml_config)
     session = YandexSession(hass, entry)
     try:
         if not await session.refresh_cookies():
@@ -178,10 +172,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
 
 
 @callback
-def _async_update_config_entry_from_yaml(hass: HomeAssistant, entry: ConfigEntry, yaml_config: ConfigType):
+def _async_update_config_entry_from_yaml(hass: HomeAssistant, entry: ConfigEntry, yaml_config: ConfigType | None):
     data = entry.data.copy()
 
-    if DOMAIN in yaml_config:
+    if yaml_config and DOMAIN in yaml_config:
         data.update(yaml_config[DOMAIN])
     else:
         data.update({
