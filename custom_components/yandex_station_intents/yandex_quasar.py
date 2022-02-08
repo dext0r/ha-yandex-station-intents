@@ -229,7 +229,7 @@ class EventStream:
 
             url = resp['updates_url']
 
-            _LOGGER.debug(f'Подключение к {url}')
+            _LOGGER.debug('Подключение к %s' % url.split('?')[0])
             self._ws = await self._session.ws_connect(url, heartbeat=45)
 
             _LOGGER.debug('Подключение к УДЯ установлено')
