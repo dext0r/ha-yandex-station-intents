@@ -153,8 +153,13 @@ class YandexQuasar:
                 'type': 'scenario.trigger.voice',
                 'value': v
             } for v in intent.trigger_phrases],
-            'requested_speaker_capabilities': speaker_caps,
-            'devices': devices
+            'steps': [{
+                'type': 'scenarios.steps.actions',
+                'parameters': {
+                    'requested_speaker_capabilities': speaker_caps,
+                    'launch_devices': devices
+                }
+            }]
         }
 
         if intent_quasar_id:
