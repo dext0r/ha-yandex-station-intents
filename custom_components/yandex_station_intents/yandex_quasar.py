@@ -220,7 +220,7 @@ class EventStream:
         self._ws_active = True
 
     async def async_init(self):
-        self._entity_registry = await entity_registry.async_get_registry(self._hass)
+        self._entity_registry = entity_registry.async_get(self._hass)
 
     async def connect(self, *_):
         if not self._ws_active:
