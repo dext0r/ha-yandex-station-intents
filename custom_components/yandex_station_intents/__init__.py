@@ -76,7 +76,7 @@ async def async_setup(hass: HomeAssistant, yaml_config: ConfigType):
         # не поддерживается несколько аккаунтов, поэтому линейно
         for entry in hass.config_entries.async_entries(DOMAIN):
             config = await async_integration_yaml_config(hass, DOMAIN)
-            _async_update_config_entry_from_yaml(hass, entry, config)
+            _update_config_entries(hass, config)
             await hass.config_entries.async_reload(entry.entry_id)
 
             if not entry.data[CONF_AUTOSYNC]:
@@ -93,8 +93,7 @@ async def async_setup(hass: HomeAssistant, yaml_config: ConfigType):
 
     hass.services.async_register(DOMAIN, 'clear_scenarios', _clear_scenarios)
 
-    for config_entry in hass.config_entries.async_entries(DOMAIN):
-        _async_update_config_entry_from_yaml(hass, config_entry, yaml_config)
+    _update_config_entries(hass, yaml_config)
 
     return True
 
@@ -171,20 +170,27 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     return True
 
 
-@callback
-def _async_update_config_entry_from_yaml(hass: HomeAssistant, entry: ConfigEntry, yaml_config: ConfigType | None):
-    data = entry.data.copy()
+def get_config_entry_data_from_yaml_config(data: dict, yaml_config: ConfigType | None) -> dict:
+    data = data.copy()
+    data.update({
+        CONF_INTENTS: {},
+        CONF_MODE: MODE_WEBSOCKET,
+        CONF_AUTOSYNC: True
+    })
 
     if yaml_config and DOMAIN in yaml_config:
         data.update(yaml_config[DOMAIN])
-    else:
-        data.update({
-            CONF_INTENTS: {},
-            CONF_MODE: MODE_WEBSOCKET,
-            CONF_AUTOSYNC: True
-        })
 
-    hass.config_entries.async_update_entry(entry, data=data)
+    return data
+
+
+@callback
+def _update_config_entries(hass: HomeAssistant, yaml_config: ConfigType | None):
+    for entry in hass.config_entries.async_entries(DOMAIN):
+        hass.config_entries.async_update_entry(
+            entry,
+            data=get_config_entry_data_from_yaml_config(entry.data, yaml_config)
+        )
 
 
 # noinspection PyBroadException

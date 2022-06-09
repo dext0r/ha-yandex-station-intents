@@ -6,9 +6,10 @@ import logging
 
 from homeassistant import data_entry_flow
 from homeassistant.config_entries import ConfigFlow
+from homeassistant.helpers.reload import async_integration_yaml_config
 import voluptuous as vol
 
-from . import DOMAIN
+from . import DOMAIN, get_config_entry_data_from_yaml_config
 from .const import CONF_X_TOKEN
 from .yandex_session import AuthException, LoginResponse, YandexSession
 
@@ -105,9 +106,12 @@ class YandexSmartHomeIntentsFlowHandler(ConfigFlow, domain=DOMAIN):
 
                 return self.async_abort(reason='account_updated')
             else:
-                return self.async_create_entry(title=response.display_login, data={
+                config = await async_integration_yaml_config(self.hass, DOMAIN)
+                data = get_config_entry_data_from_yaml_config({
                     CONF_X_TOKEN: response.x_token
-                })
+                }, config)
+
+                return self.async_create_entry(title=response.display_login, data=data)
 
         elif response.error:
             _LOGGER.error(f'Ошибка авторизации: {response.error}')
