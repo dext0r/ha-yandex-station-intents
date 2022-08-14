@@ -20,4 +20,7 @@ DATA_INTENT_MANAGER = 'intent_manager'
 DATA_EVENT_STREAM = 'event_stream'
 DATA_QUASAR = 'quasar'
 
+CLEAR_CONFIRM_KEY = 'confirm'
+CLEAR_CONFIRM_TEXT = 'я действительно хочу удалить все сценарии из удя'
+
 EVENT_NAME = 'yandex_intent'

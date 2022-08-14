@@ -8,7 +8,7 @@ from homeassistant.components import media_player
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP, SERVICE_RELOAD
 from homeassistant.core import HomeAssistant, ServiceCall, callback
-from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.exceptions import ConfigEntryNotReady, HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.reload import async_integration_yaml_config
 from homeassistant.helpers.typing import ConfigType
@@ -86,7 +86,10 @@ async def async_setup(hass: HomeAssistant, yaml_config: ConfigType):
 
     hass.helpers.service.async_register_admin_service(DOMAIN, SERVICE_RELOAD, _handle_reload)
 
-    async def _clear_scenarios(_: ServiceCall):
+    async def _clear_scenarios(service: ServiceCall):
+        if service.data.get(const.CLEAR_CONFIRM_KEY, '').lower() != const.CLEAR_CONFIRM_TEXT:
+            raise HomeAssistantError('Необходимо подтверждение, ознакомьтесь с документацией')
+
         for entry in hass.config_entries.async_entries(DOMAIN):
             quasar = hass.data[DOMAIN][entry.entry_id][DATA_QUASAR]
             await quasar.clear_scenarios()
