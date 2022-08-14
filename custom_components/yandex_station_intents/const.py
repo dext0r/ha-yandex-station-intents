@@ -11,7 +11,7 @@ CONF_COOKIE = 'cookie'
 
 INTENT_PLAYER_NAME = 'Yandex Station Intents'
 INTENT_ID_MARKER = '---'
-STATION_STUB_COMMAND = 'Сделай тише на 0'
+STATION_STUB_COMMAND = 'Сделай громкость'
 
 MODE_WEBSOCKET = 'websocket'
 MODE_DEVICE = 'device'
