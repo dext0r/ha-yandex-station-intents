@@ -185,6 +185,7 @@ class YandexSession:
             kwargs['headers'] = {'x-csrf-token': self._csrf_token}
 
         r = await getattr(self._session, method)(url, **kwargs)
+        response_text = (await r.text())[:1024]
         if r.status == 200:
             return r
         elif r.status == 400:
@@ -196,13 +197,13 @@ class YandexSession:
             # 403 - no x-csrf-token
             self._csrf_token = None
         else:
-            _LOGGER.warning(f'{url} вернул {r.status}')
+            _LOGGER.warning(f'{url} вернул {r.status}: {response_text}')
 
         if retry:
             _LOGGER.debug(f'Повтор {method} {url}')
             return await self._request(method, url, retry - 1, **kwargs)
 
-        raise Exception(f'{url} вернул {r.status}')
+        raise Exception(f'{url} вернул {r.status}: {response_text}')
 
     @property
     def _session_cookie(self) -> str:
