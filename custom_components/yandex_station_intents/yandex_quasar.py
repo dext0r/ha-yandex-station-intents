@@ -163,10 +163,10 @@ class YandexQuasar:
         }
 
         if intent_quasar_id:
-            _LOGGER.debug(f'Обновление сценария {intent.scenario_name!r}')
+            _LOGGER.debug(f'Обновление сценария {intent.scenario_name!r}: {payload}')
             r = await self._session.put(f'{URL_USER}/scenarios/{intent_quasar_id}', json=payload)
         else:
-            _LOGGER.debug(f'Создание сценария {intent.scenario_name!r}')
+            _LOGGER.debug(f'Создание сценария {intent.scenario_name!r}: {payload}')
             r = await self._session.post(f'{URL_USER}/scenarios', json=payload)
 
         resp = await r.json()
