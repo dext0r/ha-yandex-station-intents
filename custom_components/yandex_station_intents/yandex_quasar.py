@@ -61,8 +61,7 @@ class YandexQuasar:
             room_name = room['name']
 
             for device in room['devices']:
-                if device['type'].startswith('devices.types.smart_speaker') or \
-                        device['type'].endswith('yandex.module'):
+                if device['type'].startswith('devices.types.smart_speaker') or device['type'].endswith('yandex.module'):
                     device['room'] = room_name
                     self.devices.append(Device.from_dict(device))
 
@@ -90,76 +89,63 @@ class YandexQuasar:
 
         return rv
 
-    async def async_add_or_update_intent(self,
-                                         intent: Intent,
-                                         intent_quasar_id: str | None,
-                                         target_device_id: str):
+    async def async_add_or_update_intent(self, intent: Intent, intent_quasar_id: str | None, target_device_id: str):
         devices = []
 
         if intent.say_phrase:
-            speaker_caps = [{
-                'type': 'devices.capabilities.quasar.server_action',
-                'state': {
-                    'instance': 'phrase_action',
-                    'value': intent.as_phrase
+            speaker_caps = [
+                {
+                    'type': 'devices.capabilities.quasar.server_action',
+                    'state': {'instance': 'phrase_action', 'value': intent.as_phrase},
                 }
-            }]
+            ]
         else:
-            speaker_caps = [{
-                'type': 'devices.capabilities.quasar.server_action',
-                'state': {
-                    'instance': 'text_action',
-                    'value': intent.as_phrase
-                },
-                'parameters': {
-                    'instance': 'text_action'
+            speaker_caps = [
+                {
+                    'type': 'devices.capabilities.quasar.server_action',
+                    'state': {'instance': 'text_action', 'value': intent.as_phrase},
+                    'parameters': {'instance': 'text_action'},
                 }
-            }]
+            ]
 
         if target_device_id:
-            devices = [{
-                'id': target_device_id,
-                'capabilities': [{
-                    'type': 'devices.capabilities.range',
-                    'state': {
-                        'instance': 'channel',
-                        'relative': False,
-                        'value': intent.id
-                    }
-                }]
-            }]
+            devices = [
+                {
+                    'id': target_device_id,
+                    'capabilities': [
+                        {
+                            'type': 'devices.capabilities.range',
+                            'state': {'instance': 'channel', 'relative': False, 'value': intent.id},
+                        }
+                    ],
+                }
+            ]
 
             if intent.say_phrase:
-                speaker_caps = [{
-                    'type': 'devices.capabilities.quasar.server_action',
-                    'state': {
-                        'instance': 'phrase_action',
-                        'value': intent.say_phrase
+                speaker_caps = [
+                    {
+                        'type': 'devices.capabilities.quasar.server_action',
+                        'state': {'instance': 'phrase_action', 'value': intent.say_phrase},
                     }
-                }]
+                ]
             else:
-                speaker_caps = [{
-                    'type': 'devices.capabilities.quasar.server_action',
-                    'state': {
-                        'instance': 'text_action',
-                        'value': STATION_STUB_COMMAND
+                speaker_caps = [
+                    {
+                        'type': 'devices.capabilities.quasar.server_action',
+                        'state': {'instance': 'text_action', 'value': STATION_STUB_COMMAND},
                     }
-                }]
+                ]
 
         payload = {
             'name': intent.scenario_name,
             'icon': 'home',
-            'triggers': [{
-                'type': 'scenario.trigger.voice',
-                'value': v
-            } for v in intent.trigger_phrases],
-            'steps': [{
-                'type': 'scenarios.steps.actions',
-                'parameters': {
-                    'requested_speaker_capabilities': speaker_caps,
-                    'launch_devices': devices
+            'triggers': [{'type': 'scenario.trigger.voice', 'value': v} for v in intent.trigger_phrases],
+            'steps': [
+                {
+                    'type': 'scenarios.steps.actions',
+                    'parameters': {'requested_speaker_capabilities': speaker_caps, 'launch_devices': devices},
                 }
-            }]
+            ],
         }
 
         if intent_quasar_id:
@@ -204,11 +190,9 @@ class YandexQuasar:
 
 
 class EventStream:
-    def __init__(self,
-                 hass: HomeAssistant,
-                 session: YandexSession,
-                 quasar: YandexQuasar,
-                 intent_manager: IntentManager):
+    def __init__(
+        self, hass: HomeAssistant, session: YandexSession, quasar: YandexQuasar, intent_manager: IntentManager
+    ):
         self._hass = hass
         self._session = session
         self._quasar = quasar
@@ -286,25 +270,20 @@ class EventStream:
                 if not cap_state:
                     continue
 
-                if cap_state['instance'] in ['text_action', 'phrase_action'] and \
-                        INTENT_ID_MARKER in cap_state['value']:
+                if cap_state['instance'] in ['text_action', 'phrase_action'] and INTENT_ID_MARKER in cap_state['value']:
                     for device in self._quasar.devices:
                         if device.id != dev['id'] or not device.yandex_station_id:
                             continue
 
                         phrase = cap_state['value']
                         entity_id = self._entity_registry.async_get_entity_id(
-                            media_player.DOMAIN,
-                            'yandex_station',
-                            device.yandex_station_id
+                            media_player.DOMAIN, 'yandex_station', device.yandex_station_id
                         )
                         if not entity_id:
                             _LOGGER.debug(f'Ignoring intent {phrase!r}, speaker {device.yandex_station_id} not found')
                             continue
 
-                        event_data = {
-                            ATTR_ENTITY_ID: entity_id
-                        }
+                        event_data = {ATTR_ENTITY_ID: entity_id}
                         if device.room:
                             event_data['room'] = device.room
 

@@ -16,9 +16,7 @@ from .yandex_intent import IntentManager
 _LOGGER = logging.getLogger(__name__)
 
 
-async def async_setup_entry(hass: HomeAssistant,
-                            entry: ConfigEntry,
-                            async_add_entities: AddEntitiesCallback) -> None:
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
     manager: IntentManager = hass.data[DOMAIN][entry.entry_id][DATA_INTENT_MANAGER]
 
     async_add_entities([YandexStationIntentMediaPlayer(manager)])

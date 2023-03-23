@@ -25,7 +25,7 @@ class AuthException(Exception):
 
 
 class LoginResponse:
-    """"
+    """
     status: ok
        uid: 1234567890
        display_name: John
@@ -107,8 +107,7 @@ class YandexSession:
             'host': 'passport.yandex.com',
         }
         r = await self._session.post(
-            'https://mobileproxy.passport.yandex.net/1/token',
-            data=payload, headers=HEADERS, cookies=cookies
+            'https://mobileproxy.passport.yandex.net/1/token', data=payload, headers=HEADERS, cookies=cookies
         )
         resp = await r.json()
         if 'error' in resp:
@@ -123,8 +122,8 @@ class YandexSession:
     async def validate_token(self, x_token: str) -> LoginResponse:
         headers = {'Authorization': f'OAuth {x_token}'}
         r = await self._session.get(
-            'https://mobileproxy.passport.yandex.net/1/bundle/account/'
-            'short_info/?avatar_size=islands-300', headers=headers
+            'https://mobileproxy.passport.yandex.net/1/bundle/account/' 'short_info/?avatar_size=islands-300',
+            headers=headers,
         )
         resp = await r.json()
         resp['x_token'] = x_token
@@ -134,14 +133,11 @@ class YandexSession:
     async def login_token(self, x_token: str) -> bool:
         _LOGGER.debug('Авторизация в Яндекс с помощью токена')
 
-        payload = {
-            'type': 'x-token',
-            'retpath': 'https://www.yandex.ru'
-        }
+        payload = {'type': 'x-token', 'retpath': 'https://www.yandex.ru'}
         headers = {'Ya-Consumer-Authorization': f'OAuth {x_token}'}
         r = await self._session.post(
-            'https://mobileproxy.passport.yandex.net/1/bundle/auth/x_token/',
-            data=payload, headers=headers)
+            'https://mobileproxy.passport.yandex.net/1/bundle/auth/x_token/', data=payload, headers=headers
+        )
         resp = await r.json()
         if resp['status'] != 'ok':
             _LOGGER.error(f'Ошибка авторизации: {resp}')
