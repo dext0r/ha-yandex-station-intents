@@ -15,6 +15,8 @@ from homeassistant.helpers.typing import ConfigType
 import voluptuous as vol
 
 from .const import (
+    CLEAR_CONFIRM_KEY,
+    CLEAR_CONFIRM_TEXT,
     CONF_AUTOSYNC,
     CONF_INTENT_EXTRA_PHRASES,
     CONF_INTENT_SAY_PHRASE,
@@ -87,7 +89,7 @@ async def async_setup(hass: HomeAssistant, yaml_config: ConfigType):
     hass.helpers.service.async_register_admin_service(DOMAIN, SERVICE_RELOAD, _handle_reload)
 
     async def _clear_scenarios(service: ServiceCall):
-        if service.data.get(const.CLEAR_CONFIRM_KEY, '').lower() != const.CLEAR_CONFIRM_TEXT:
+        if service.data.get(CLEAR_CONFIRM_KEY, '').lower() != CLEAR_CONFIRM_TEXT:
             raise HomeAssistantError('Необходимо подтверждение, ознакомьтесь с документацией')
 
         for entry in hass.config_entries.async_entries(DOMAIN):

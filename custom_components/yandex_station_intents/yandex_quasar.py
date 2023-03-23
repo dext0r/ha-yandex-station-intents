@@ -3,12 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 import logging
-from typing import Any
+from typing import Any, AsyncIterable, cast
 
 from aiohttp import ClientConnectorError, ClientResponseError, ClientWebSocketResponse, WSMessage, WSMsgType
 from homeassistant.components import media_player
 from homeassistant.const import ATTR_ENTITY_ID
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HassJob, HomeAssistant
 from homeassistant.helpers import entity_registry
 from homeassistant.helpers.entity_registry import EntityRegistry
 from homeassistant.helpers.event import async_call_later
@@ -240,7 +240,7 @@ class EventStream:
             _LOGGER.debug('Подключение к УДЯ установлено')
             self._ws_reconnect_delay = DEFAULT_RECONNECTION_DELAY
 
-            async for msg in self._ws:  # type: WSMessage
+            async for msg in cast(AsyncIterable[WSMessage], self._ws):
                 if msg.type == WSMsgType.TEXT:
                     # noinspection PyBroadException
                     try:
@@ -267,7 +267,7 @@ class EventStream:
     def _try_reconnect(self):
         self._ws_reconnect_delay = min(2 * self._ws_reconnect_delay, MAX_RECONNECTION_DELAY)
         _LOGGER.debug(f'Переподключение через {self._ws_reconnect_delay} сек.')
-        async_call_later(self._hass, self._ws_reconnect_delay, self.connect)
+        async_call_later(self._hass, self._ws_reconnect_delay, HassJob(self.connect))
 
     async def _on_message(self, payload: dict[Any, Any]):
         if payload.get('operation') != 'update_states':

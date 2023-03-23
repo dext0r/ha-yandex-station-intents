@@ -1,3 +1,3 @@
-isort==5.9.3
-flake8==3.9.2
-flake8-quotes==3.3.0
+pre-commit==3.2.0
+ruff==0.0.257
+isort==5.12.0
