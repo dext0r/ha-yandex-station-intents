@@ -280,7 +280,10 @@ class EventStream:
                             media_player.DOMAIN, 'yandex_station', device.yandex_station_id
                         )
                         if not entity_id:
-                            _LOGGER.debug(f'Ignoring intent {phrase!r}, speaker {device.yandex_station_id} not found')
+                            _LOGGER.warning(
+                                f'Не найдена колонка {device.yandex_station_id} для события {phrase!r}. '
+                                f'Интеграция Yandex.Station установлена и настроена?'
+                            )
                             continue
 
                         event_data = {ATTR_ENTITY_ID: entity_id}
