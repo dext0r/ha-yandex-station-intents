@@ -14,7 +14,7 @@ from homeassistant.helpers.entity_registry import EntityRegistry
 from homeassistant.helpers.event import async_call_later
 
 from .const import INTENT_ID_MARKER, INTENT_PLAYER_NAME, STATION_STUB_COMMAND
-from .intent import Intent, IntentManager
+from .yandex_intent import Intent, IntentManager
 from .yandex_session import YandexSession
 
 _LOGGER = logging.getLogger(__name__)

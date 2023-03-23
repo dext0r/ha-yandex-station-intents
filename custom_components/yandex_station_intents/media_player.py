@@ -11,7 +11,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DATA_INTENT_MANAGER, DOMAIN, INTENT_PLAYER_NAME
-from .intent import IntentManager
+from .yandex_intent import IntentManager
 
 _LOGGER = logging.getLogger(__name__)
 

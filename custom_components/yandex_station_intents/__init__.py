@@ -29,7 +29,7 @@ from .const import (
     MODE_WEBSOCKET,
     NOTIFICATION_TITLE,
 )
-from .intent import Intent, IntentManager
+from .yandex_intent import Intent, IntentManager
 from .yandex_quasar import EventStream, YandexQuasar
 from .yandex_session import YandexSession
 
