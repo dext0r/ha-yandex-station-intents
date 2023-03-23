@@ -3,17 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 import logging
 
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-from .const import (
-    CONF_INTENT_EXTRA_PHRASES,
-    CONF_INTENT_SAY_PHRASE,
-    CONF_INTENTS,
-    EVENT_NAME,
-    INTENT_ID_MARKER,
-    STATION_STUB_COMMAND,
-)
+from .const import CONF_INTENT_EXTRA_PHRASES, CONF_INTENT_SAY_PHRASE, EVENT_NAME, INTENT_ID_MARKER, STATION_STUB_COMMAND
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -75,12 +67,15 @@ class BaseConverter:
 
 
 class IntentManager:
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry):
+    def __init__(self, hass: HomeAssistant, intents_config: dict | None):
         self._hass = hass
 
         self.intents: list[Intent] = []
 
-        for idx, (name, config) in enumerate(entry.data[CONF_INTENTS].items(), 0):
+        if not intents_config:
+            return
+
+        for idx, (name, config) in enumerate(intents_config.items(), 0):
             intent = Intent(
                 id=idx,
                 name=name,

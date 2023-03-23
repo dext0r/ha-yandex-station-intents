@@ -88,10 +88,9 @@ async def async_setup(hass: HomeAssistant, yaml_config: ConfigType):
     hass.data[DOMAIN] = {}
 
     async def _handle_reload(_: ServiceCall):
-        # не поддерживается несколько аккаунтов, поэтому линейно
+        # неподдерживается несколько аккаунтов, поэтому линейно
         for entry in hass.config_entries.async_entries(DOMAIN):
-            config = await async_integration_yaml_config(hass, DOMAIN)
-            _update_config_entries(hass, config)
+            _reload_config(hass, await async_integration_yaml_config(hass, DOMAIN))
             await hass.config_entries.async_reload(entry.entry_id)
 
             if not entry.data[CONF_AUTOSYNC]:
@@ -111,7 +110,7 @@ async def async_setup(hass: HomeAssistant, yaml_config: ConfigType):
 
     hass.services.async_register(DOMAIN, 'clear_scenarios', _clear_scenarios)
 
-    _update_config_entries(hass, yaml_config)
+    _reload_config(hass, yaml_config)
 
     return True
 
@@ -127,7 +126,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             )
             return False
 
-        manager = IntentManager(hass, entry)
+        manager = IntentManager(hass, hass.data[CONF_INTENTS])
         quasar = YandexQuasar(session)
         await quasar.async_init()
     except Exception as e:
@@ -178,18 +177,21 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     return True
 
 
-def get_config_entry_data_from_yaml_config(data: dict, yaml_config: ConfigType | None) -> dict:
-    data = data.copy()
-    data.update({CONF_INTENTS: {}, CONF_MODE: MODE_WEBSOCKET, CONF_AUTOSYNC: True})
+def get_config_entry_data_from_yaml_config(data: dict, yaml_config: ConfigType) -> dict:
+    config = yaml_config.get(DOMAIN, {})
 
-    if yaml_config and DOMAIN in yaml_config:
-        data.update(yaml_config[DOMAIN])
+    data = data.copy()
+    data.pop(CONF_INTENTS, None)  # legacy
+    data[CONF_MODE] = config.get(CONF_MODE, MODE_WEBSOCKET)
+    data[CONF_AUTOSYNC] = config.get(CONF_AUTOSYNC, True)
 
     return data
 
 
 @callback
-def _update_config_entries(hass: HomeAssistant, yaml_config: ConfigType | None):
+def _reload_config(hass: HomeAssistant, yaml_config: ConfigType | None):
+    hass.data[CONF_INTENTS] = yaml_config.get(DOMAIN, {}).get(CONF_INTENTS)
+
     for entry in hass.config_entries.async_entries(DOMAIN):
         hass.config_entries.async_update_entry(
             entry, data=get_config_entry_data_from_yaml_config(entry.data, yaml_config)
