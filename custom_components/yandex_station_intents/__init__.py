@@ -9,7 +9,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP, SERVICE_RELOAD
 from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.exceptions import ConfigEntryNotReady, HomeAssistantError
-from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import config_validation as cv, template as template_helper
 from homeassistant.helpers.reload import async_integration_yaml_config
 from homeassistant.helpers.typing import ConfigType
 import voluptuous as vol
@@ -41,12 +41,12 @@ _LOGGER = logging.getLogger(__name__)
 PLATFORMS: Final[list[str]] = [media_player.DOMAIN]
 
 
-def intent_config_validate(intent_config: dict) -> dict:
-    names = set(map(str.lower, intent_config.keys()))
+def intents_config_validate(intents_config: dict) -> dict:
+    names = set(map(str.lower, intents_config.keys()))
     execute_commands = set(
         [
             c[CONF_INTENT_EXECUTE_COMMAND].template.lower()
-            for c in intent_config.values()
+            for c in intents_config.values()
             if CONF_INTENT_EXECUTE_COMMAND in c
         ]
     )
@@ -55,7 +55,14 @@ def intent_config_validate(intent_config: dict) -> dict:
     if forbidden_phrases:
         raise vol.Invalid(f'Недопустимо использовать команды в активационных фразах: {forbidden_phrases}')
 
-    return intent_config
+    for name, intent_config in intents_config.items():
+        if (
+            isinstance(intent_config.get(CONF_INTENT_SAY_PHRASE), template_helper.Template)
+            and CONF_INTENT_EXECUTE_COMMAND in intent_config
+        ):
+            raise vol.Invalid(f'Недопустимо совместное использование execute_command и шаблонной say_phrase в {name!r}')
+
+    return intents_config
 
 
 def intent_item_validate(intent_item):
@@ -75,6 +82,14 @@ def intent_name_validate(name: str) -> str:
     return name
 
 
+def string_or_template(value: str) -> str | template_helper.Template:
+    value = cv.string(value)
+    if template_helper.is_template_string(value):
+        return cv.template(value)
+
+    return value
+
+
 CONFIG_SCHEMA = vol.Schema(
     {
         DOMAIN: vol.Schema(
@@ -89,13 +104,13 @@ CONFIG_SCHEMA = vol.Schema(
                                         vol.Optional(CONF_INTENT_EXTRA_PHRASES): [
                                             vol.All(cv.string, intent_name_validate)
                                         ],
-                                        vol.Optional(CONF_INTENT_SAY_PHRASE): cv.string,
+                                        vol.Optional(CONF_INTENT_SAY_PHRASE): string_or_template,
                                         vol.Optional(CONF_INTENT_EXECUTE_COMMAND): cv.template,
                                     }
                                 ),
                             ),
                         },
-                        intent_config_validate,
+                        intents_config_validate,
                     )
                 ),
                 vol.Optional(CONF_MODE, default=MODE_WEBSOCKET): vol.In([MODE_WEBSOCKET, MODE_DEVICE]),

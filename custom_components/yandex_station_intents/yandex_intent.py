@@ -31,6 +31,7 @@ class Intent:
     name: str
     trigger_phrases: list[str]
     say_phrase: str | None = None
+    say_phrase_template: Template | None = None
     execute_command: Template | None = None
 
     @property
@@ -94,10 +95,12 @@ class IntentManager:
             return
 
         for idx, (name, config) in enumerate(intents_config.items(), 0):
+            say_phrase = config.get(CONF_INTENT_SAY_PHRASE)
             intent = Intent(
                 id=idx,
                 name=name,
-                say_phrase=config.get(CONF_INTENT_SAY_PHRASE),
+                say_phrase=say_phrase if not isinstance(say_phrase, Template) else None,
+                say_phrase_template=say_phrase if isinstance(say_phrase, Template) else None,
                 trigger_phrases=[name] + config.get(CONF_INTENT_EXTRA_PHRASES, []),
                 execute_command=config.get(CONF_INTENT_EXECUTE_COMMAND),
             )
@@ -119,6 +122,9 @@ class IntentManager:
             if intent.execute_command:
                 await self._execute_command(intent, event_data, yandex_station_entity_id)
 
+            if intent.say_phrase_template:
+                await self._tts(intent, event_data, yandex_station_entity_id)
+
     async def _execute_command(self, intent: Intent, event_data: dict, yandex_station_entity_id: str):
         if self._detect_command_loop():
             return
@@ -132,6 +138,21 @@ class IntentManager:
                 ATTR_ENTITY_ID: yandex_station_entity_id,
                 media_player.ATTR_MEDIA_CONTENT_TYPE: 'command',
                 media_player.ATTR_MEDIA_CONTENT_ID: intent.execute_command.async_render(
+                    variables={'event': event_data}
+                ),
+            },
+        )
+
+    async def _tts(self, intent: Intent, event_data: dict, yandex_station_entity_id: str):
+        intent.say_phrase_template.hass = self._hass
+
+        await self._hass.services.async_call(
+            media_player.DOMAIN,
+            media_player.SERVICE_PLAY_MEDIA,
+            {
+                ATTR_ENTITY_ID: yandex_station_entity_id,
+                media_player.ATTR_MEDIA_CONTENT_TYPE: 'text',
+                media_player.ATTR_MEDIA_CONTENT_ID: intent.say_phrase_template.async_render(
                     variables={'event': event_data}
                 ),
             },
