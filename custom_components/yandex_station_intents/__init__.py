@@ -18,6 +18,7 @@ from .const import (
     CLEAR_CONFIRM_KEY,
     CLEAR_CONFIRM_TEXT,
     CONF_AUTOSYNC,
+    CONF_INTENT_EXECUTE_COMMAND,
     CONF_INTENT_EXTRA_PHRASES,
     CONF_INTENT_SAY_PHRASE,
     CONF_INTENTS,
@@ -40,13 +41,30 @@ _LOGGER = logging.getLogger(__name__)
 PLATFORMS: Final[list[str]] = [media_player.DOMAIN]
 
 
-def intent_config_validate(intent_config):
-    if intent_config is None:
-        return {}
-    elif isinstance(intent_config, str):
-        return {CONF_INTENT_SAY_PHRASE: intent_config}
+def intent_config_validate(intent_config: dict) -> dict:
+    names = set(map(str.lower, intent_config.keys()))
+    execute_commands = set(
+        [
+            c[CONF_INTENT_EXECUTE_COMMAND].template.lower()
+            for c in intent_config.values()
+            if CONF_INTENT_EXECUTE_COMMAND in c
+        ]
+    )
+
+    forbidden_phrases = execute_commands & names
+    if forbidden_phrases:
+        raise vol.Invalid(f'Недопустимо использовать команды в активационных фразах: {forbidden_phrases}')
 
     return intent_config
+
+
+def intent_item_validate(intent_item):
+    if intent_item is None:
+        return {}
+    elif isinstance(intent_item, str):
+        return {CONF_INTENT_SAY_PHRASE: intent_item}
+
+    return intent_item
 
 
 def intent_name_validate(name: str) -> str:
@@ -62,17 +80,23 @@ CONFIG_SCHEMA = vol.Schema(
         DOMAIN: vol.Schema(
             {
                 vol.Optional(CONF_INTENTS, default={}): vol.Schema(
-                    {
-                        vol.All(cv.string, intent_name_validate): vol.All(
-                            intent_config_validate,
-                            vol.Schema(
-                                {
-                                    vol.Optional(CONF_INTENT_EXTRA_PHRASES): [vol.All(cv.string, intent_name_validate)],
-                                    vol.Optional(CONF_INTENT_SAY_PHRASE): cv.string,
-                                }
+                    vol.All(
+                        {
+                            vol.All(cv.string, intent_name_validate): vol.All(
+                                intent_item_validate,
+                                vol.Schema(
+                                    {
+                                        vol.Optional(CONF_INTENT_EXTRA_PHRASES): [
+                                            vol.All(cv.string, intent_name_validate)
+                                        ],
+                                        vol.Optional(CONF_INTENT_SAY_PHRASE): cv.string,
+                                        vol.Optional(CONF_INTENT_EXECUTE_COMMAND): cv.template,
+                                    }
+                                ),
                             ),
-                        ),
-                    }
+                        },
+                        intent_config_validate,
+                    )
                 ),
                 vol.Optional(CONF_MODE, default=MODE_WEBSOCKET): vol.In([MODE_WEBSOCKET, MODE_DEVICE]),
                 vol.Optional(CONF_AUTOSYNC, default=True): cv.boolean,

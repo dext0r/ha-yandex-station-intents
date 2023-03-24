@@ -13,7 +13,7 @@ from homeassistant.helpers import entity_registry
 from homeassistant.helpers.entity_registry import EntityRegistry
 from homeassistant.helpers.event import async_call_later
 
-from .const import INTENT_ID_MARKER, INTENT_PLAYER_NAME, STATION_STUB_COMMAND
+from .const import INTENT_ID_MARKER, INTENT_PLAYER_NAME
 from .yandex_intent import Intent, IntentManager
 from .yandex_session import YandexSession
 
@@ -39,6 +39,78 @@ class Device:
             kw['yandex_station_id'] = data['quasar_info'].get('device_id')
 
         return Device(**kw)
+
+
+class ScenarioStep:
+    def __init__(self, value: str | None = None, launch_devices: list[Any] | None = None):
+        self._value = value
+        self._launch_devices = launch_devices or []
+        self._request_speaker_capabilities = []
+
+    @property
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            'type': 'scenarios.steps.actions',
+            'parameters': {
+                'launch_devices': self._launch_devices,
+                'requested_speaker_capabilities': self._request_speaker_capabilities,
+            },
+        }
+
+
+class ScenarioStepTTS(ScenarioStep):
+    """
+    Проговаривает текст полностью и только потом выполняет следующий шаг.
+    В интерфейсе: "Прочитать текст вслух"
+    В список событий не попадает.
+    """
+
+    def __init__(self, value: str, launch_devices: list[Any] | None = None):
+        super().__init__(value, launch_devices)
+
+        self._request_speaker_capabilities.append(
+            {
+                'parameters': {'instance': 'tts'},
+                'retrievable': False,
+                'state': {'instance': 'tts', 'value': {'text': self._value}},
+                'type': 'devices.capabilities.quasar',
+            }
+        )
+
+
+class ScenarioStepTextAction(ScenarioStep):
+    """
+    Выполняет команду на колонке.
+    В интерфейсе: "Ответить на вопрос или выполнить команду"
+    """
+
+    def __init__(self, value: str, launch_devices: list[Any] | None = None):
+        super().__init__(value, launch_devices)
+
+        self._request_speaker_capabilities.append(
+            {
+                'parameters': {'instance': 'text_action'},
+                'state': {'instance': 'text_action', 'value': self._value},
+                'type': 'devices.capabilities.quasar.server_action',
+            }
+        )
+
+
+class ScenarioStepPhraseAction(ScenarioStep):
+    """
+    Проговаривает текст и сразу выполняет следующую команду.
+    В интерфейсе: отсутствует
+    """
+
+    def __init__(self, value: str, launch_devices: list[Any] | None = None):
+        super().__init__(value, launch_devices)
+
+        self._request_speaker_capabilities.append(
+            {
+                'state': {'instance': 'phrase_action', 'value': self._value},
+                'type': 'devices.capabilities.quasar.server_action',
+            }
+        )
 
 
 class YandexQuasar:
@@ -90,62 +162,38 @@ class YandexQuasar:
         return rv
 
     async def async_add_or_update_intent(self, intent: Intent, intent_quasar_id: str | None, target_device_id: str):
-        devices = []
-
-        if intent.say_phrase:
-            speaker_caps = [
-                {
-                    'type': 'devices.capabilities.quasar.server_action',
-                    'state': {'instance': 'phrase_action', 'value': intent.as_phrase},
-                }
-            ]
-        else:
-            speaker_caps = [
-                {
-                    'type': 'devices.capabilities.quasar.server_action',
-                    'state': {'instance': 'text_action', 'value': intent.as_phrase},
-                    'parameters': {'instance': 'text_action'},
-                }
-            ]
+        steps: list[ScenarioStep] = []
 
         if target_device_id:
-            devices = [
-                {
-                    'id': target_device_id,
-                    'capabilities': [
+            steps.append(
+                ScenarioStep(
+                    launch_devices=[
                         {
-                            'type': 'devices.capabilities.range',
-                            'state': {'instance': 'channel', 'relative': False, 'value': intent.id},
+                            'id': target_device_id,
+                            'capabilities': [
+                                {
+                                    'type': 'devices.capabilities.range',
+                                    'state': {'instance': 'channel', 'relative': False, 'value': intent.id},
+                                }
+                            ],
                         }
-                    ],
-                }
-            ]
+                    ]
+                )
+            )
 
-            if intent.say_phrase:
-                speaker_caps = [
-                    {
-                        'type': 'devices.capabilities.quasar.server_action',
-                        'state': {'instance': 'phrase_action', 'value': intent.say_phrase},
-                    }
-                ]
-            else:
-                speaker_caps = [
-                    {
-                        'type': 'devices.capabilities.quasar.server_action',
-                        'state': {'instance': 'text_action', 'value': STATION_STUB_COMMAND},
-                    }
-                ]
+        if intent.say_phrase and intent.execute_command:
+            steps.append(ScenarioStepTTS(intent.say_phrase))
+            steps.append(ScenarioStepTextAction(intent.scenario_step_value))
+        elif intent.say_phrase:
+            steps.append(ScenarioStepPhraseAction(intent.scenario_step_value))
+        else:
+            steps.append(ScenarioStepTextAction(intent.scenario_step_value))
 
         payload = {
             'name': intent.scenario_name,
             'icon': 'home',
             'triggers': [{'type': 'scenario.trigger.voice', 'value': v} for v in intent.trigger_phrases],
-            'steps': [
-                {
-                    'type': 'scenarios.steps.actions',
-                    'parameters': {'requested_speaker_capabilities': speaker_caps, 'launch_devices': devices},
-                }
-            ],
+            'steps': [s.as_dict for s in steps],
         }
 
         if intent_quasar_id:
@@ -290,4 +338,4 @@ class EventStream:
                         if device.room:
                             event_data['room'] = device.room
 
-                        self._manager.event_from_phrase(phrase, event_data)
+                        await self._manager.async_handle_phrase(phrase, event_data, entity_id)
