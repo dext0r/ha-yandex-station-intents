@@ -135,7 +135,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     hass.data[DOMAIN][entry.entry_id] = {DATA_QUASAR: quasar, DATA_INTENT_MANAGER: manager, DATA_EVENT_STREAM: None}
 
     if entry.data[CONF_MODE] == MODE_DEVICE:
-        hass.config_entries.async_setup_platforms(entry, PLATFORMS)
+        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
         device_id = await quasar.async_get_intent_player_device_id()
         if not device_id:
