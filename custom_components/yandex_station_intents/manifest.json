@@ -7,6 +7,6 @@
   "codeowners": ["@dext0r"],
   "dependencies": ["http"],
   "requirements": [],
-  "version": "0.3.4",
+  "version": "0.5.0",
   "iot_class": "local_push"
 }
