@@ -133,7 +133,7 @@ class YandexQuasar:
             room_name = room['name']
 
             for device in room['devices']:
-                if device['type'].startswith('devices.types.smart_speaker') or device['type'].endswith('yandex.module'):
+                if self._is_supported_device(device):
                     device['room'] = room_name
                     self.devices.append(Device.from_dict(device))
 
@@ -236,6 +236,25 @@ class YandexQuasar:
             except Exception:
                 _LOGGER.exception(f'Ошибка удаления сценария {scenario_name!r}')
 
+    @staticmethod
+    def _is_supported_device(device: dict[str, Any]) -> bool:
+        device_type = device.get('type', '')
+
+        # devices.types.smart_speaker.yandex.station.mini_2
+        # devices.types.smart_speaker.yandex.station_2
+        if device_type.startswith('devices.types.smart_speaker'):
+            return True
+
+        # devices.types.media_device.tv.yandex.magritte
+        if device_type.startswith('devices.types.media_device.tv.yandex'):
+            return True
+
+        # devices.types.media_device.dongle.yandex.module_2
+        if 'dongle.yandex.module' in device_type:
+            return True
+
+        return False
+
 
 class EventStream:
     def __init__(
@@ -319,6 +338,8 @@ class EventStream:
                     continue
 
                 if cap_state['instance'] in ['text_action', 'phrase_action'] and INTENT_ID_MARKER in cap_state['value']:
+                    _LOGGER.debug(f'Интент обнаружен в событии: {dev!r}')
+
                     for device in self._quasar.devices:
                         if device.id != dev['id'] or not device.yandex_station_id:
                             continue
