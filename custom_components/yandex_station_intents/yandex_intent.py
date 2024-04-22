@@ -36,7 +36,7 @@ class Intent:
 
     @property
     def scenario_name(self):
-        return f'{INTENT_ID_MARKER} {self.name}'
+        return f"{INTENT_ID_MARKER} {self.name}"
 
     @property
     def scenario_step_value(self) -> str:
@@ -48,14 +48,14 @@ class Intent:
         rv += BaseConverter.encode(self.id)
 
         if len(rv) > 100:
-            raise ValueError(f'Слишком длинная произносимая фраза: {rv!r}')
+            raise ValueError(f"Слишком длинная произносимая фраза: {rv!r}")
 
         return rv
 
 
 class BaseConverter:
-    _base_chars = ',.:'
-    _digits = '01234567890'
+    _base_chars = ",.:"
+    _digits = "01234567890"
 
     @classmethod
     def _convert(cls, number: int | str, from_digits: str, to_digits: str):
@@ -66,7 +66,7 @@ class BaseConverter:
         if x == 0:
             rv = to_digits[0]
         else:
-            rv = ''
+            rv = ""
             while x > 0:
                 digit = x % len(to_digits)
                 rv = to_digits[digit] + rv
@@ -109,14 +109,14 @@ class IntentManager:
     def event_from_id(self, intent_id: int):
         if intent_id < len(self.intents):
             text = self.intents[intent_id].name
-            _LOGGER.debug(f'Получена команда: {text}')
-            self._hass.bus.async_fire(EVENT_NAME, {'text': text})
+            _LOGGER.debug(f"Получена команда: {text}")
+            self._hass.bus.async_fire(EVENT_NAME, {"text": text})
 
     async def async_handle_phrase(self, phrase: str, event_data: dict, yandex_station_entity_id: str):
         intent = self._intent_from_phrase(phrase)
         if intent:
-            event_data['text'] = intent.name
-            _LOGGER.debug(f'Получена команда: {event_data!r}')
+            event_data["text"] = intent.name
+            _LOGGER.debug(f"Получена команда: {event_data!r}")
             self._hass.bus.async_fire(EVENT_NAME, event_data)
 
             if intent.execute_command:
@@ -136,9 +136,9 @@ class IntentManager:
             media_player.SERVICE_PLAY_MEDIA,
             {
                 ATTR_ENTITY_ID: yandex_station_entity_id,
-                media_player.ATTR_MEDIA_CONTENT_TYPE: 'command',
+                media_player.ATTR_MEDIA_CONTENT_TYPE: "command",
                 media_player.ATTR_MEDIA_CONTENT_ID: intent.execute_command.async_render(
-                    variables={'event': event_data}
+                    variables={"event": event_data}
                 ),
             },
         )
@@ -151,9 +151,9 @@ class IntentManager:
             media_player.SERVICE_PLAY_MEDIA,
             {
                 ATTR_ENTITY_ID: yandex_station_entity_id,
-                media_player.ATTR_MEDIA_CONTENT_TYPE: 'text',
+                media_player.ATTR_MEDIA_CONTENT_TYPE: "text",
                 media_player.ATTR_MEDIA_CONTENT_ID: intent.say_phrase_template.async_render(
-                    variables={'event': event_data}
+                    variables={"event": event_data}
                 ),
             },
         )
@@ -163,8 +163,8 @@ class IntentManager:
             self._command_execution_loop_count += 1
             if self._command_execution_loop_count >= COMMAND_EXECUTION_LOOP_THRESHOLD:
                 _LOGGER.error(
-                    'Обнаружена частая отправка команд на колонку. '
-                    'Похоже, что исполняемая команда совпадает с одной из активационных фраз.'
+                    "Обнаружена частая отправка команд на колонку. "
+                    "Похоже, что исполняемая команда совпадает с одной из активационных фраз."
                 )
                 return True
         else:

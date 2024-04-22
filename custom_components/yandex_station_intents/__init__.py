@@ -53,14 +53,14 @@ def intents_config_validate(intents_config: dict) -> dict:
 
     forbidden_phrases = execute_commands & names
     if forbidden_phrases:
-        raise vol.Invalid(f'Недопустимо использовать команды в активационных фразах: {forbidden_phrases}')
+        raise vol.Invalid(f"Недопустимо использовать команды в активационных фразах: {forbidden_phrases}")
 
     for name, intent_config in intents_config.items():
         if (
             isinstance(intent_config.get(CONF_INTENT_SAY_PHRASE), template_helper.Template)
             and CONF_INTENT_EXECUTE_COMMAND in intent_config
         ):
-            raise vol.Invalid(f'Недопустимо совместное использование execute_command и шаблонной say_phrase в {name!r}')
+            raise vol.Invalid(f"Недопустимо совместное использование execute_command и шаблонной say_phrase в {name!r}")
 
     return intents_config
 
@@ -75,9 +75,9 @@ def intent_item_validate(intent_item):
 
 
 def intent_name_validate(name: str) -> str:
-    if not re.search(r'^[а-яё0-9 ]+$', name, re.IGNORECASE):
-        _LOGGER.error(f'Недопустимая фраза {name!r}: разрешены только кириллица, цифры и пробелы')
-        raise vol.Invalid('Разрешены только кириллица, цифры и пробелы')
+    if not re.search(r"^[а-яё0-9 ]+$", name, re.IGNORECASE):
+        _LOGGER.error(f"Недопустимая фраза {name!r}: разрешены только кириллица, цифры и пробелы")
+        raise vol.Invalid("Разрешены только кириллица, цифры и пробелы")
 
     return name
 
@@ -140,14 +140,14 @@ async def async_setup(hass: HomeAssistant, yaml_config: ConfigType):
     hass.helpers.service.async_register_admin_service(DOMAIN, SERVICE_RELOAD, _handle_reload)
 
     async def _clear_scenarios(service: ServiceCall):
-        if service.data.get(CLEAR_CONFIRM_KEY, '').lower() != CLEAR_CONFIRM_TEXT:
-            raise HomeAssistantError('Необходимо подтверждение, ознакомьтесь с документацией')
+        if service.data.get(CLEAR_CONFIRM_KEY, "").lower() != CLEAR_CONFIRM_TEXT:
+            raise HomeAssistantError("Необходимо подтверждение, ознакомьтесь с документацией")
 
         for entry in hass.config_entries.async_entries(DOMAIN):
             quasar = hass.data[DOMAIN][entry.entry_id][DATA_QUASAR]
             await quasar.clear_scenarios()
 
-    hass.services.async_register(DOMAIN, 'clear_scenarios', _clear_scenarios)
+    hass.services.async_register(DOMAIN, "clear_scenarios", _clear_scenarios)
 
     _reload_config(hass, yaml_config)
 
@@ -159,8 +159,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     try:
         if not await session.refresh_cookies():
             hass.components.persistent_notification.async_create(
-                'Необходимо заново авторизоваться в Яндексе. Для этого удалите интеграцию и [добавьте '
-                'снова](/config/integrations).',
+                "Необходимо заново авторизоваться в Яндексе. Для этого удалите интеграцию и [добавьте "
+                "снова](/config/integrations).",
                 title=NOTIFICATION_TITLE,
             )
             return False
@@ -179,8 +179,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         device_id = await quasar.async_get_intent_player_device_id()
         if not device_id:
             hass.components.persistent_notification.async_create(
-                f'Служебный плеер **{INTENT_PLAYER_NAME}** не найден в УДЯ. Убедитесь, что он разрешён в фильтрах в '
-                f'компоненте Yandex Smart Home, обновите список устройств в УДЯ и перезагрузите эту интеграцию.',
+                f"Служебный плеер **{INTENT_PLAYER_NAME}** не найден в УДЯ. Убедитесь, что он разрешён в фильтрах в "
+                f"компоненте Yandex Smart Home, обновите список устройств в УДЯ и перезагрузите эту интеграцию.",
                 title=NOTIFICATION_TITLE,
             )
             return False
@@ -249,4 +249,4 @@ async def _async_setup_intents(intents: list[Intent], quasar: YandexQuasar, targ
                 intent=item, intent_quasar_id=quasar_intents.get(item.name), target_device_id=target_device_id
             )
         except Exception:
-            _LOGGER.exception(f'Ошибка создания или обновления сценария {item.scenario_name!r}')
+            _LOGGER.exception(f"Ошибка создания или обновления сценария {item.scenario_name!r}")
