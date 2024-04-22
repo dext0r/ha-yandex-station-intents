@@ -131,7 +131,7 @@ class YandexQuasar:
 
         for dev in resp['speakers']:
             self.devices.append(Device.from_dict(dev))
-            
+
         for room in resp['rooms']:
             room_name = room['name']
 
