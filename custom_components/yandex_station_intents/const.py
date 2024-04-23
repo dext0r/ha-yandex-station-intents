@@ -2,6 +2,7 @@ from enum import StrEnum
 
 DOMAIN = "yandex_station_intents"
 NOTIFICATION_TITLE = "Yandex.Station Intents"
+YANDEX_STATION_DOMAIN = "yandex_station"
 
 CONF_INTENTS = "intents"
 CONF_INTENT_EXTRA_PHRASES = "extra_phrases"

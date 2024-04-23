@@ -13,7 +13,7 @@ from homeassistant.helpers import entity_registry
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.typing import ConfigType
 
-from .const import INTENT_ID_MARKER, INTENT_PLAYER_NAME
+from .const import INTENT_ID_MARKER, INTENT_PLAYER_NAME, YANDEX_STATION_DOMAIN
 from .yandex_intent import Intent, IntentManager
 from .yandex_session import YandexSession
 
@@ -346,7 +346,7 @@ class EventStream:
 
                         phrase = cap_state["value"]
                         entity_id = self._entity_registry.async_get_entity_id(
-                            media_player.DOMAIN, "yandex_station", device.yandex_station_id
+                            media_player.DOMAIN, YANDEX_STATION_DOMAIN, device.yandex_station_id
                         )
                         if not entity_id:
                             _LOGGER.warning(

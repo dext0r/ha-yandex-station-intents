@@ -50,7 +50,7 @@ class YandexSmartHomeIntentsFlowHandler(ConfigFlow, domain=DOMAIN):
         return await self._show_form(user_input["method"])
 
     async def async_step_yandex_station(self, user_input: ConfigType | None = None) -> FlowResult:
-        entries = self.hass.config_entries.async_entries("yandex_station")
+        entries = self.hass.config_entries.async_entries(YANDEX_STATION_DOMAIN)
         if not entries:
             return self.async_abort(reason="install_yandex_station")
 
