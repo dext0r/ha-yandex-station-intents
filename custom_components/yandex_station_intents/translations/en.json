@@ -1,8 +1,6 @@
 {
   "config": {
     "abort": {
-      "account_updated": "Данные обновлены, перезапустите Home Assistant",
-      "single_instance_allowed": "Разрешена только одна настройка Yandex.Station Intents",
       "install_yandex_station": "Чтобы воспользоваться этим способом авторизации установите и настройте интеграцию [Yandex.Station](https://github.com/AlexxIT/YandexStation)"
     },
     "error": {

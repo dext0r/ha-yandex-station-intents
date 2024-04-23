@@ -165,8 +165,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     try:
         if not await session.refresh_cookies():
             hass.components.persistent_notification.async_create(
-                "Необходимо заново авторизоваться в Яндексе. Для этого удалите интеграцию и [добавьте "
-                "снова](/config/integrations).",
+                "Необходимо заново авторизоваться в Яндексе. Для этого "
+                "[добавьте новую интеграцию](/config/integrations) с тем же логином.",
                 title=NOTIFICATION_TITLE,
             )
             return False

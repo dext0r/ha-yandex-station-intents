@@ -1,3 +1,4 @@
+from enum import StrEnum
 from functools import lru_cache
 import json
 import logging
@@ -8,14 +9,16 @@ from homeassistant.helpers.typing import ConfigType
 import voluptuous as vol
 
 from . import DOMAIN
-from .const import CONF_X_TOKEN
+from .const import CONF_X_TOKEN, YANDEX_STATION_DOMAIN
 from .yandex_session import AuthException, LoginResponse, YandexSession
 
 _LOGGER = logging.getLogger(__name__)
 
-METHOD_COOKIES = "cookies"
-METHOD_TOKEN = "token"
-METHOD_YANDEX_STATION = "yandex_station"
+
+class AuthMethod(StrEnum):
+    COOKIES = "cookies"
+    TOKEN = "token"
+    YANDEX_STATION = "yandex_station"
 
 
 class YandexSmartHomeIntentsFlowHandler(ConfigFlow, domain=DOMAIN):
@@ -25,26 +28,23 @@ class YandexSmartHomeIntentsFlowHandler(ConfigFlow, domain=DOMAIN):
         return YandexSession(self.hass)
 
     async def async_step_user(self, user_input: ConfigType | None = None) -> FlowResult:  # type: ignore
-        if self._async_current_entries():
-            return self.async_abort(reason="single_instance_allowed")
-
         if user_input is None:
             return self.async_show_form(
                 step_id="user",
                 data_schema=vol.Schema(
                     {
-                        vol.Required("method", default=METHOD_YANDEX_STATION): vol.In(
+                        vol.Required("method", default=AuthMethod.YANDEX_STATION): vol.In(
                             {
-                                METHOD_YANDEX_STATION: "Через компонент Yandex.Station",
-                                METHOD_COOKIES: "Cookies",
-                                METHOD_TOKEN: "Токен",
+                                AuthMethod.YANDEX_STATION: "Через компонент Yandex.Station",
+                                AuthMethod.COOKIES: "Cookies",
+                                AuthMethod.TOKEN: "Токен",
                             }
                         )
                     }
                 ),
             )
 
-        if user_input["method"] == METHOD_YANDEX_STATION:
+        if user_input["method"] == AuthMethod.YANDEX_STATION:
             return await self.async_step_yandex_station()
 
         return await self._show_form(user_input["method"])
@@ -57,7 +57,7 @@ class YandexSmartHomeIntentsFlowHandler(ConfigFlow, domain=DOMAIN):
         if user_input:
             for entry in entries:
                 if entry.entry_id == user_input["account"]:
-                    return await self.async_step_token({METHOD_TOKEN: entry.data[CONF_X_TOKEN]})
+                    return await self.async_step_token({AuthMethod.TOKEN: entry.data[CONF_X_TOKEN]})
 
         accounts = {entry.entry_id: entry.title for entry in entries}
 
@@ -72,34 +72,30 @@ class YandexSmartHomeIntentsFlowHandler(ConfigFlow, domain=DOMAIN):
 
     async def async_step_cookies(self, user_input: ConfigType) -> FlowResult:
         try:
-            cookies = {p["name"]: p["value"] for p in json.loads(user_input[METHOD_COOKIES])}
+            cookies = {p["name"]: p["value"] for p in json.loads(user_input[AuthMethod.COOKIES])}
         except (TypeError, KeyError, json.decoder.JSONDecodeError):
-            return await self._show_form(METHOD_COOKIES, errors={"base": "cookies.invalid_format"})
+            return await self._show_form(AuthMethod.COOKIES, errors={"base": "cookies.invalid_format"})
 
         try:
             response = await self._session.login_cookies(cookies)
         except AuthException as e:
             _LOGGER.error(f"Ошибка авторизации: {e}")
-            return await self._show_form(METHOD_COOKIES, errors={"base": "auth.error"})
+            return await self._show_form(AuthMethod.COOKIES, errors={"base": "auth.error"})
 
-        return await self._check_yandex_response(response, METHOD_COOKIES)
+        return await self._check_yandex_response(response, AuthMethod.COOKIES)
 
     async def async_step_token(self, user_input: ConfigType) -> FlowResult:
-        response = await self._session.validate_token(user_input[METHOD_TOKEN])
-        return await self._check_yandex_response(response, METHOD_TOKEN)
+        response = await self._session.validate_token(user_input[AuthMethod.TOKEN])
+        return await self._check_yandex_response(response, AuthMethod.TOKEN)
 
-    async def _show_form(self, method: str, errors: dict[str, str] | None = None) -> FlowResult:
+    async def _show_form(self, method: AuthMethod, errors: dict[str, str] | None = None) -> FlowResult:
         return self.async_show_form(
-            step_id=method,
+            step_id=str(method),
             errors=errors,
-            data_schema=vol.Schema(
-                {
-                    vol.Required(method): str,
-                }
-            ),
+            data_schema=vol.Schema({vol.Required(str(method)): str}),
         )
 
-    async def _check_yandex_response(self, response: LoginResponse, method: str) -> FlowResult:
+    async def _check_yandex_response(self, response: LoginResponse, method: AuthMethod) -> FlowResult:
         if response.ok:
             await self.async_set_unique_id(response.display_login)
             return self.async_create_entry(title=response.display_login, data={CONF_X_TOKEN: response.x_token})
