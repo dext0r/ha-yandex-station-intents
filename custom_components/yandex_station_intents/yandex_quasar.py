@@ -126,11 +126,9 @@ class YandexQuasar:
         resp = await r.json()
         assert resp["status"] == "ok", resp
 
-        for dev in resp["unconfigured_devices"]:
-            self.devices.append(Device.from_dict(dev))
-
-        for dev in resp["speakers"]:
-            self.devices.append(Device.from_dict(dev))
+        for device in resp["speakers"]:
+            if self._is_supported_device(device):
+                self.devices.append(Device.from_dict(device))
 
         for room in resp["rooms"]:
             room_name = room["name"]
