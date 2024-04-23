@@ -10,8 +10,8 @@ from homeassistant.components import media_player
 from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import HassJob, HomeAssistant
 from homeassistant.helpers import entity_registry
-from homeassistant.helpers.entity_registry import EntityRegistry
 from homeassistant.helpers.event import async_call_later
+from homeassistant.helpers.typing import ConfigType
 
 from .const import INTENT_ID_MARKER, INTENT_PLAYER_NAME
 from .yandex_intent import Intent, IntentManager
@@ -32,7 +32,7 @@ class Device:
     yandex_station_id: str | None = None
 
     @classmethod
-    def from_dict(cls, data: dict) -> Device:
+    def from_dict(cls, data: ConfigType) -> Device:
         kw = {"id": data["id"], "name": data["name"], "room": data.get("room")}
 
         if "quasar_info" in data:
@@ -42,13 +42,13 @@ class Device:
 
 
 class ScenarioStep:
-    def __init__(self, value: str | None = None, launch_devices: list[Any] | None = None):
+    def __init__(self, value: str | None = None, launch_devices: list[Any] | None = None) -> None:
         self._value = value
         self._launch_devices = launch_devices or []
-        self._request_speaker_capabilities = []
+        self._request_speaker_capabilities: list[dict[Any, Any]] = []
 
     @property
-    def as_dict(self) -> dict[str, Any]:
+    def as_dict(self) -> ConfigType:
         return {
             "type": "scenarios.steps.actions",
             "parameters": {
@@ -65,7 +65,7 @@ class ScenarioStepTTS(ScenarioStep):
     В список событий не попадает.
     """
 
-    def __init__(self, value: str, launch_devices: list[Any] | None = None):
+    def __init__(self, value: str, launch_devices: list[Any] | None = None) -> None:
         super().__init__(value, launch_devices)
 
         self._request_speaker_capabilities.append(
@@ -84,7 +84,7 @@ class ScenarioStepTextAction(ScenarioStep):
     В интерфейсе: "Ответить на вопрос или выполнить команду"
     """
 
-    def __init__(self, value: str, launch_devices: list[Any] | None = None):
+    def __init__(self, value: str, launch_devices: list[Any] | None = None) -> None:
         super().__init__(value, launch_devices)
 
         self._request_speaker_capabilities.append(
@@ -102,7 +102,7 @@ class ScenarioStepPhraseAction(ScenarioStep):
     В интерфейсе: отсутствует
     """
 
-    def __init__(self, value: str, launch_devices: list[Any] | None = None):
+    def __init__(self, value: str, launch_devices: list[Any] | None = None) -> None:
         super().__init__(value, launch_devices)
 
         self._request_speaker_capabilities.append(
@@ -114,12 +114,12 @@ class ScenarioStepPhraseAction(ScenarioStep):
 
 
 class YandexQuasar:
-    def __init__(self, session: YandexSession):
+    def __init__(self, session: YandexSession) -> None:
         self._session = session
 
         self.devices: list[Device] = []
 
-    async def async_init(self):
+    async def async_init(self) -> None:
         _LOGGER.debug("Получение списка устройств")
 
         r = await self._session.get(f"{URL_USER}/devices")
@@ -138,7 +138,7 @@ class YandexQuasar:
                     device["room"] = room_name
                     self.devices.append(Device.from_dict(device))
 
-    async def async_get_intent_player_device_id(self) -> None | str:
+    async def async_get_intent_player_device_id(self) -> str | None:
         for device in self.devices:
             if device.name == INTENT_PLAYER_NAME:
                 return device.id
@@ -162,7 +162,9 @@ class YandexQuasar:
 
         return rv
 
-    async def async_add_or_update_intent(self, intent: Intent, intent_quasar_id: str | None, target_device_id: str):
+    async def async_add_or_update_intent(
+        self, intent: Intent, intent_quasar_id: str | None, target_device_id: str | None
+    ) -> None:
         steps: list[ScenarioStep] = []
 
         if target_device_id:
@@ -207,7 +209,7 @@ class YandexQuasar:
         resp = await r.json()
         assert resp["status"] == "ok", resp
 
-    async def delete_stale_intents(self, active_intents: list[Intent]):
+    async def delete_stale_intents(self, active_intents: list[Intent]) -> None:
         quasar_intents = await self.async_get_intents()
         for intent_name, intent_id in quasar_intents.items():
             if intent_name not in [i.name for i in active_intents]:
@@ -220,7 +222,7 @@ class YandexQuasar:
                 except Exception:
                     _LOGGER.exception(f"Ошибка удаления сценария {intent_name!r}")
 
-    async def clear_scenarios(self):
+    async def clear_scenarios(self) -> None:
         r = await self._session.get(f"{URL_USER}/scenarios")
         resp = await r.json()
         assert resp["status"] == "ok", resp
@@ -238,7 +240,7 @@ class YandexQuasar:
                 _LOGGER.exception(f"Ошибка удаления сценария {scenario_name!r}")
 
     @staticmethod
-    def _is_supported_device(device: dict[str, Any]) -> bool:
+    def _is_supported_device(device: ConfigType) -> bool:
         device_type = device.get("type", "")
 
         # devices.types.smart_speaker.yandex.station.mini_2
@@ -260,21 +262,18 @@ class YandexQuasar:
 class EventStream:
     def __init__(
         self, hass: HomeAssistant, session: YandexSession, quasar: YandexQuasar, intent_manager: IntentManager
-    ):
+    ) -> None:
         self._hass = hass
         self._session = session
         self._quasar = quasar
         self._manager = intent_manager
-        self._entity_registry: EntityRegistry | None = None
+        self._entity_registry = entity_registry.async_get(self._hass)
 
         self._ws: ClientWebSocketResponse | None = None
         self._ws_reconnect_delay = DEFAULT_RECONNECTION_DELAY
         self._ws_active = True
 
-    async def async_init(self):
-        self._entity_registry = entity_registry.async_get(self._hass)
-
-    async def connect(self, *_):
+    async def connect(self, *_: Any) -> None:
         if not self._ws_active:
             return
 
@@ -310,18 +309,18 @@ class EventStream:
             _LOGGER.exception("Неожиданное исключение")
             self._try_reconnect()
 
-    async def disconnect(self, *_):
+    async def disconnect(self, *_: Any) -> None:
         self._ws_active = False
 
         if self._ws:
             await self._ws.close()
 
-    def _try_reconnect(self):
+    def _try_reconnect(self) -> None:
         self._ws_reconnect_delay = min(2 * self._ws_reconnect_delay, MAX_RECONNECTION_DELAY)
         _LOGGER.debug(f"Переподключение через {self._ws_reconnect_delay} сек.")
         async_call_later(self._hass, self._ws_reconnect_delay, HassJob(self.connect))
 
-    async def _on_message(self, payload: dict[Any, Any]):
+    async def _on_message(self, payload: dict[Any, Any]) -> None:
         if payload.get("operation") != "update_states":
             return
 

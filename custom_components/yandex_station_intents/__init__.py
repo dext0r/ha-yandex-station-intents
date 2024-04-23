@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import logging
 import re
 from typing import Final
@@ -41,8 +39,8 @@ _LOGGER = logging.getLogger(__name__)
 PLATFORMS: Final[list[str]] = [media_player.DOMAIN]
 
 
-def intents_config_validate(intents_config: dict) -> dict:
-    names = set(map(str.lower, intents_config.keys()))
+def intents_config_validate(intents_config: ConfigType) -> ConfigType:
+    names = set(map(lambda s: s.lower(), intents_config.keys()))
     execute_commands = set(
         [
             c[CONF_INTENT_EXECUTE_COMMAND].template.lower()
@@ -65,7 +63,7 @@ def intents_config_validate(intents_config: dict) -> dict:
     return intents_config
 
 
-def intent_item_validate(intent_item):
+def intent_item_validate(intent_item: str | ConfigType | None) -> ConfigType:
     if intent_item is None:
         return {}
     elif isinstance(intent_item, str):
@@ -123,13 +121,13 @@ CONFIG_SCHEMA = vol.Schema(
 )
 
 
-async def async_setup(hass: HomeAssistant, yaml_config: ConfigType):
+async def async_setup(hass: HomeAssistant, yaml_config: ConfigType) -> bool:
     hass.data[DOMAIN] = {}
 
-    async def _handle_reload(_: ServiceCall):
+    async def _handle_reload(_: ServiceCall) -> None:
         # неподдерживается несколько аккаунтов, поэтому линейно
         for entry in hass.config_entries.async_entries(DOMAIN):
-            _reload_config(hass, await async_integration_yaml_config(hass, DOMAIN))
+            _reload_config(hass, await async_integration_yaml_config(hass, DOMAIN) or {})
             await hass.config_entries.async_reload(entry.entry_id)
 
             if not entry.data[CONF_AUTOSYNC]:
@@ -139,7 +137,7 @@ async def async_setup(hass: HomeAssistant, yaml_config: ConfigType):
 
     hass.helpers.service.async_register_admin_service(DOMAIN, SERVICE_RELOAD, _handle_reload)
 
-    async def _clear_scenarios(service: ServiceCall):
+    async def _clear_scenarios(service: ServiceCall) -> None:
         if service.data.get(CLEAR_CONFIRM_KEY, "").lower() != CLEAR_CONFIRM_TEXT:
             raise HomeAssistantError("Необходимо подтверждение, ознакомьтесь с документацией")
 
@@ -154,7 +152,7 @@ async def async_setup(hass: HomeAssistant, yaml_config: ConfigType):
     return True
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     session = YandexSession(hass, entry)
     try:
         if not await session.refresh_cookies():
@@ -188,7 +186,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         hass.loop.create_task(_async_setup_intents(manager.intents, quasar, device_id))
     else:
         event_stream = EventStream(hass, session, quasar, manager)
-        await event_stream.async_init()
         hass.data[DOMAIN][entry.entry_id][DATA_EVENT_STREAM] = event_stream
 
         hass.loop.create_task(event_stream.connect())
@@ -200,7 +197,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     event_stream = hass.data[DOMAIN][entry.entry_id][DATA_EVENT_STREAM]
     if event_stream:
         hass.async_create_task(event_stream.disconnect())
@@ -216,7 +213,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     return True
 
 
-def get_config_entry_data_from_yaml_config(data: dict, yaml_config: ConfigType) -> dict:
+def get_config_entry_data_from_yaml_config(data: ConfigType, yaml_config: ConfigType) -> ConfigType:
     config = yaml_config.get(DOMAIN, {})
 
     data = data.copy()
@@ -228,17 +225,18 @@ def get_config_entry_data_from_yaml_config(data: dict, yaml_config: ConfigType) 
 
 
 @callback
-def _reload_config(hass: HomeAssistant, yaml_config: ConfigType | None):
+def _reload_config(hass: HomeAssistant, yaml_config: ConfigType) -> None:
     hass.data[CONF_INTENTS] = yaml_config.get(DOMAIN, {}).get(CONF_INTENTS)
 
     for entry in hass.config_entries.async_entries(DOMAIN):
         hass.config_entries.async_update_entry(
-            entry, data=get_config_entry_data_from_yaml_config(entry.data, yaml_config)
+            entry, data=get_config_entry_data_from_yaml_config(dict(entry.data), yaml_config)
         )
 
 
-# noinspection PyBroadException
-async def _async_setup_intents(intents: list[Intent], quasar: YandexQuasar, target_device_id: str | None = None):
+async def _async_setup_intents(
+    intents: list[Intent], quasar: YandexQuasar, target_device_id: str | None = None
+) -> None:
     await quasar.delete_stale_intents(intents)
 
     quasar_intents = await quasar.async_get_intents()

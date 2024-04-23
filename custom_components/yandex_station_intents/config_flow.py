@@ -1,12 +1,11 @@
-from __future__ import annotations
-
 from functools import lru_cache
 import json
 import logging
 
-from homeassistant import data_entry_flow
 from homeassistant.config_entries import ConfigFlow
+from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.reload import async_integration_yaml_config
+from homeassistant.helpers.typing import ConfigType
 import voluptuous as vol
 
 from . import DOMAIN, get_config_entry_data_from_yaml_config
@@ -23,10 +22,10 @@ METHOD_YANDEX_STATION = "yandex_station"
 class YandexSmartHomeIntentsFlowHandler(ConfigFlow, domain=DOMAIN):
     @property
     @lru_cache()
-    def _session(self):
+    def _session(self) -> YandexSession:
         return YandexSession(self.hass)
 
-    async def async_step_user(self, user_input=None) -> data_entry_flow.FlowResult:
+    async def async_step_user(self, user_input: ConfigType | None = None) -> FlowResult:  # type: ignore
         if self._async_current_entries():
             return self.async_abort(reason="single_instance_allowed")
 
@@ -51,7 +50,7 @@ class YandexSmartHomeIntentsFlowHandler(ConfigFlow, domain=DOMAIN):
 
         return await self._show_form(user_input["method"])
 
-    async def async_step_yandex_station(self, user_input=None) -> data_entry_flow.FlowResult:
+    async def async_step_yandex_station(self, user_input: ConfigType | None = None) -> FlowResult:
         entries = self.hass.config_entries.async_entries("yandex_station")
         if not entries:
             return self.async_abort(reason="install_yandex_station")
@@ -61,18 +60,18 @@ class YandexSmartHomeIntentsFlowHandler(ConfigFlow, domain=DOMAIN):
                 if entry.entry_id == user_input["account"]:
                     return await self.async_step_token({METHOD_TOKEN: entry.data[CONF_X_TOKEN]})
 
-        entries = {entry.entry_id: entry.title for entry in entries}
+        accounts = {entry.entry_id: entry.title for entry in entries}
 
         return self.async_show_form(
             step_id="yandex_station",
             data_schema=vol.Schema(
                 {
-                    vol.Required("account"): vol.In(entries),
+                    vol.Required("account"): vol.In(accounts),
                 }
             ),
         )
 
-    async def async_step_cookies(self, user_input) -> data_entry_flow.FlowResult:
+    async def async_step_cookies(self, user_input: ConfigType) -> FlowResult:
         try:
             cookies = {p["name"]: p["value"] for p in json.loads(user_input[METHOD_COOKIES])}
         except (TypeError, KeyError, json.decoder.JSONDecodeError):
@@ -86,11 +85,11 @@ class YandexSmartHomeIntentsFlowHandler(ConfigFlow, domain=DOMAIN):
 
         return await self._check_yandex_response(response, METHOD_COOKIES)
 
-    async def async_step_token(self, user_input) -> data_entry_flow.FlowResult:
+    async def async_step_token(self, user_input: ConfigType) -> FlowResult:
         response = await self._session.validate_token(user_input[METHOD_TOKEN])
         return await self._check_yandex_response(response, METHOD_TOKEN)
 
-    async def _show_form(self, method: str, errors: dict[str, str] | None = None) -> data_entry_flow.FlowResult:
+    async def _show_form(self, method: str, errors: dict[str, str] | None = None) -> FlowResult:
         return self.async_show_form(
             step_id=method,
             errors=errors,
@@ -101,7 +100,7 @@ class YandexSmartHomeIntentsFlowHandler(ConfigFlow, domain=DOMAIN):
             ),
         )
 
-    async def _check_yandex_response(self, response: LoginResponse, method: str) -> data_entry_flow.FlowResult:
+    async def _check_yandex_response(self, response: LoginResponse, method: str) -> FlowResult:
         if response.ok:
             entry = await self.async_set_unique_id(response.display_login)
             if entry:
@@ -110,7 +109,7 @@ class YandexSmartHomeIntentsFlowHandler(ConfigFlow, domain=DOMAIN):
                 return self.async_abort(reason="account_updated")
             else:
                 config = await async_integration_yaml_config(self.hass, DOMAIN)
-                data = get_config_entry_data_from_yaml_config({CONF_X_TOKEN: response.x_token}, config)
+                data = get_config_entry_data_from_yaml_config({CONF_X_TOKEN: response.x_token}, config or {})
 
                 return self.async_create_entry(title=response.display_login, data=data)
 

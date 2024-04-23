@@ -1,11 +1,10 @@
-from __future__ import annotations
-
 import base64
 import logging
 import pickle
 import re
+from typing import Any, cast
 
-from aiohttp import __version__ as aiohttp_version
+from aiohttp import ClientResponse, ClientWebSocketResponse, CookieJar, __version__ as aiohttp_version
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
@@ -53,38 +52,38 @@ class LoginResponse:
        errors: [password.not_matched]
     """
 
-    def __init__(self, resp: dict):
+    def __init__(self, resp: dict[str, Any]) -> None:
         self.raw = resp
 
     @property
-    def ok(self):
-        return self.raw["status"] == "ok"
+    def ok(self) -> bool:
+        return bool(self.raw["status"] == "ok")
 
     @property
-    def error(self):
-        return self.raw["errors"][0]
+    def error(self) -> str:
+        return str(self.raw["errors"][0])
 
     @property
-    def display_login(self):
-        return self.raw["display_login"]
+    def display_login(self) -> str:
+        return str(self.raw["display_login"])
 
     @property
-    def x_token(self):
-        return self.raw["x_token"]
+    def x_token(self) -> str:
+        return str(self.raw["x_token"])
 
 
 class YandexSession:
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry | None = None):
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry | None = None) -> None:
         self._hass = hass
         self._session = async_create_clientsession(hass)
         self._entry = entry
-        self._x_token = None
-        self._csrf_token = None
+        self._x_token: str | None = None
+        self._csrf_token: str | None = None
 
         if self._entry:
-            self._x_token = entry.data.get(CONF_X_TOKEN)
+            self._x_token = self._entry.data.get(CONF_X_TOKEN)
 
-            cookie = entry.data.get(CONF_COOKIE)
+            cookie = self._entry.data.get(CONF_COOKIE)
             if cookie:
                 raw = base64.b64decode(cookie)
                 cookies = pickle.loads(raw)
@@ -97,9 +96,9 @@ class YandexSession:
                     for name, c in cookies_by_name:
                         cookies[(c["domain"], c["path"])][name] = c
 
-                self._session.cookie_jar._cookies = cookies
+                cast(CookieJar, self._session.cookie_jar)._cookies = cookies
 
-    async def login_cookies(self, cookies: dict[str, str]):
+    async def login_cookies(self, cookies: dict[str, str]) -> LoginResponse:
         payload = {
             "grant_type": "sessionid",
             "client_id": "c0ebe342af7d48fbbbfcf2d2eedb8f9e",
@@ -150,36 +149,39 @@ class YandexSession:
 
         return True
 
-    async def refresh_cookies(self):
+    async def refresh_cookies(self) -> bool:
         r = await self._session.get("https://quasar.yandex.ru/get_account_config")
         resp = await r.json()
         if resp["status"] == "ok":
             return True
 
+        if not self._x_token:
+            return False
+
         ok = await self.login_token(self._x_token)
-        if ok:
+        if ok and self._entry:
             data = self._entry.data.copy()
             data[CONF_COOKIE] = self._session_cookie
             self._hass.config_entries.async_update_entry(self._entry, data=data)
 
         return ok
 
-    async def get(self, url, **kwargs):
+    async def get(self, url: str, **kwargs: Any) -> ClientResponse:
         return await self._request("get", url, **kwargs)
 
-    async def post(self, url, **kwargs):
+    async def post(self, url: str, **kwargs: Any) -> ClientResponse:
         return await self._request("post", url, **kwargs)
 
-    async def put(self, url, **kwargs):
+    async def put(self, url: str, **kwargs: Any) -> ClientResponse:
         return await self._request("put", url, **kwargs)
 
-    async def delete(self, url, **kwargs):
+    async def delete(self, url: str, **kwargs: Any) -> ClientResponse:
         return await self._request("delete", url, **kwargs)
 
-    async def ws_connect(self, *args, **kwargs):
+    async def ws_connect(self, *args: Any, **kwargs: Any) -> ClientWebSocketResponse:
         return await self._session.ws_connect(*args, **kwargs)
 
-    async def _request(self, method: str, url: str, retry: int = 2, **kwargs):
+    async def _request(self, method: str, url: str, retry: int = 2, **kwargs: Any) -> ClientResponse:
         if method != "get":
             if self._csrf_token is None:
                 _LOGGER.debug("Обновление CSRF-токена")
@@ -215,6 +217,6 @@ class YandexSession:
 
     @property
     def _session_cookie(self) -> str:
-        # noinspection PyProtectedMember, PyUnresolvedReferences
-        raw = pickle.dumps(self._session.cookie_jar._cookies, pickle.HIGHEST_PROTOCOL)
+        # noinspection PyProtectedMember
+        raw = pickle.dumps(cast(CookieJar, self._session.cookie_jar)._cookies, pickle.HIGHEST_PROTOCOL)
         return base64.b64encode(raw).decode()
