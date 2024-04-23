@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import logging
 import re
 from typing import Final
@@ -5,7 +6,7 @@ from typing import Final
 from homeassistant.components import media_player
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP, SERVICE_RELOAD
-from homeassistant.core import HomeAssistant, ServiceCall, callback
+from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ConfigEntryNotReady, HomeAssistantError
 from homeassistant.helpers import config_validation as cv, template as template_helper
 from homeassistant.helpers.reload import async_integration_yaml_config
@@ -21,15 +22,12 @@ from .const import (
     CONF_INTENT_SAY_PHRASE,
     CONF_INTENTS,
     CONF_MODE,
-    DATA_EVENT_STREAM,
-    DATA_INTENT_MANAGER,
-    DATA_QUASAR,
     DOMAIN,
     INTENT_PLAYER_NAME,
-    MODE_DEVICE,
-    MODE_WEBSOCKET,
     NOTIFICATION_TITLE,
+    ConnectionMode,
 )
+from .entry_data import ConfigEntryData
 from .yandex_intent import Intent, IntentManager
 from .yandex_quasar import EventStream, YandexQuasar
 from .yandex_session import YandexSession
@@ -111,7 +109,9 @@ CONFIG_SCHEMA = vol.Schema(
                         intents_config_validate,
                     )
                 ),
-                vol.Optional(CONF_MODE, default=MODE_WEBSOCKET): vol.In([MODE_WEBSOCKET, MODE_DEVICE]),
+                vol.Optional(CONF_MODE, default=ConnectionMode.WEBSOCKET): vol.In(
+                    [ConnectionMode.WEBSOCKET, ConnectionMode.DEVICE]
+                ),
                 vol.Optional(CONF_AUTOSYNC, default=True): cv.boolean,
             },
             extra=vol.ALLOW_EXTRA,
@@ -121,19 +121,29 @@ CONFIG_SCHEMA = vol.Schema(
 )
 
 
+@dataclass
+class Component:
+    yaml_config: ConfigType
+    entry_datas: dict[str, ConfigEntryData]
+
+    @property
+    def intents_config(self) -> ConfigType:
+        return dict(self.yaml_config.get(CONF_INTENTS, {}))
+
+
 async def async_setup(hass: HomeAssistant, yaml_config: ConfigType) -> bool:
-    hass.data[DOMAIN] = {}
+    hass.data[DOMAIN] = component = Component(yaml_config.get(DOMAIN, {}), {})
 
     async def _handle_reload(_: ServiceCall) -> None:
-        # неподдерживается несколько аккаунтов, поэтому линейно
+        component.yaml_config = (await async_integration_yaml_config(hass, DOMAIN) or {}).get(DOMAIN, {})
+
         for entry in hass.config_entries.async_entries(DOMAIN):
-            _reload_config(hass, await async_integration_yaml_config(hass, DOMAIN) or {})
             await hass.config_entries.async_reload(entry.entry_id)
 
-            if not entry.data[CONF_AUTOSYNC]:
-                quasar = hass.data[DOMAIN][entry.entry_id][DATA_QUASAR]
-                manager = hass.data[DOMAIN][entry.entry_id][DATA_INTENT_MANAGER]
-                await _async_setup_intents(manager.intents, quasar)
+        # Синхронный режим использован специально для предотвращения быстрого нажатия кнопки перезагрузки
+        for entry_data in component.entry_datas.values():
+            if not entry_data.autosync:
+                await _async_setup_intents(entry_data.intent_manager.intents, entry_data.quasar)
 
     hass.helpers.service.async_register_admin_service(DOMAIN, SERVICE_RELOAD, _handle_reload)
 
@@ -141,18 +151,16 @@ async def async_setup(hass: HomeAssistant, yaml_config: ConfigType) -> bool:
         if service.data.get(CLEAR_CONFIRM_KEY, "").lower() != CLEAR_CONFIRM_TEXT:
             raise HomeAssistantError("Необходимо подтверждение, ознакомьтесь с документацией")
 
-        for entry in hass.config_entries.async_entries(DOMAIN):
-            quasar = hass.data[DOMAIN][entry.entry_id][DATA_QUASAR]
-            await quasar.clear_scenarios()
+        for entry_data in component.entry_datas.values():
+            await entry_data.quasar.clear_scenarios()
 
     hass.services.async_register(DOMAIN, "clear_scenarios", _clear_scenarios)
-
-    _reload_config(hass, yaml_config)
 
     return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    component: Component = hass.data[DOMAIN]
     session = YandexSession(hass, entry)
     try:
         if not await session.refresh_cookies():
@@ -163,15 +171,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
             return False
 
-        manager = IntentManager(hass, hass.data[CONF_INTENTS])
+        manager = IntentManager(hass, component.intents_config)
         quasar = YandexQuasar(session)
         await quasar.async_init()
     except Exception as e:
         raise ConfigEntryNotReady(e)
 
-    hass.data[DOMAIN][entry.entry_id] = {DATA_QUASAR: quasar, DATA_INTENT_MANAGER: manager, DATA_EVENT_STREAM: None}
+    entry_data = ConfigEntryData(yaml_config=component.yaml_config, quasar=quasar, intent_manager=manager)
+    component.entry_datas[entry.entry_id] = entry_data
 
-    if entry.data[CONF_MODE] == MODE_DEVICE:
+    if entry_data.connection_mode == ConnectionMode.DEVICE:
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
         device_id = await quasar.async_get_intent_player_device_id()
@@ -183,55 +192,36 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
             return False
 
-        hass.loop.create_task(_async_setup_intents(manager.intents, quasar, device_id))
+        if entry_data.autosync:
+            hass.loop.create_task(_async_setup_intents(manager.intents, quasar, device_id))
     else:
         event_stream = EventStream(hass, session, quasar, manager)
-        hass.data[DOMAIN][entry.entry_id][DATA_EVENT_STREAM] = event_stream
-
+        component.entry_datas[entry.entry_id].event_stream = event_stream
         hass.loop.create_task(event_stream.connect())
         entry.async_on_unload(hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, event_stream.disconnect))
 
-        if entry.data[CONF_AUTOSYNC]:
+        if entry_data.autosync:
             hass.loop.create_task(_async_setup_intents(manager.intents, quasar))
 
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    event_stream = hass.data[DOMAIN][entry.entry_id][DATA_EVENT_STREAM]
-    if event_stream:
-        hass.async_create_task(event_stream.disconnect())
+    component: Component = hass.data[DOMAIN]
+    entry_data = component.entry_datas[entry.entry_id]
 
-    if entry.data[CONF_MODE] == MODE_DEVICE:
+    if entry_data.event_stream:
+        hass.async_create_task(entry_data.event_stream.disconnect())
+
+    if entry_data.connection_mode == ConnectionMode.DEVICE:
         unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
         if unload_ok:
-            hass.data[DOMAIN].pop(entry.entry_id)
+            component.entry_datas.pop(entry.entry_id)
 
         return unload_ok
 
     return True
-
-
-def get_config_entry_data_from_yaml_config(data: ConfigType, yaml_config: ConfigType) -> ConfigType:
-    config = yaml_config.get(DOMAIN, {})
-
-    data = data.copy()
-    data.pop(CONF_INTENTS, None)  # legacy
-    data[CONF_MODE] = config.get(CONF_MODE, MODE_WEBSOCKET)
-    data[CONF_AUTOSYNC] = config.get(CONF_AUTOSYNC, True)
-
-    return data
-
-
-@callback
-def _reload_config(hass: HomeAssistant, yaml_config: ConfigType) -> None:
-    hass.data[CONF_INTENTS] = yaml_config.get(DOMAIN, {}).get(CONF_INTENTS)
-
-    for entry in hass.config_entries.async_entries(DOMAIN):
-        hass.config_entries.async_update_entry(
-            entry, data=get_config_entry_data_from_yaml_config(dict(entry.data), yaml_config)
-        )
 
 
 async def _async_setup_intents(

@@ -4,11 +4,10 @@ import logging
 
 from homeassistant.config_entries import ConfigFlow
 from homeassistant.data_entry_flow import FlowResult
-from homeassistant.helpers.reload import async_integration_yaml_config
 from homeassistant.helpers.typing import ConfigType
 import voluptuous as vol
 
-from . import DOMAIN, get_config_entry_data_from_yaml_config
+from . import DOMAIN
 from .const import CONF_X_TOKEN
 from .yandex_session import AuthException, LoginResponse, YandexSession
 
@@ -102,16 +101,8 @@ class YandexSmartHomeIntentsFlowHandler(ConfigFlow, domain=DOMAIN):
 
     async def _check_yandex_response(self, response: LoginResponse, method: str) -> FlowResult:
         if response.ok:
-            entry = await self.async_set_unique_id(response.display_login)
-            if entry:
-                self.hass.config_entries.async_update_entry(entry, data={CONF_X_TOKEN: response.x_token})
-
-                return self.async_abort(reason="account_updated")
-            else:
-                config = await async_integration_yaml_config(self.hass, DOMAIN)
-                data = get_config_entry_data_from_yaml_config({CONF_X_TOKEN: response.x_token}, config or {})
-
-                return self.async_create_entry(title=response.display_login, data=data)
+            await self.async_set_unique_id(response.display_login)
+            return self.async_create_entry(title=response.display_login, data={CONF_X_TOKEN: response.x_token})
 
         elif response.error:
             _LOGGER.error(f"Ошибка авторизации: {response.error}")

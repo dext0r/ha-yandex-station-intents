@@ -7,16 +7,16 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DATA_INTENT_MANAGER, DOMAIN, INTENT_PLAYER_NAME
+from . import Component
+from .const import DOMAIN, INTENT_PLAYER_NAME
 from .yandex_intent import IntentManager
 
 _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
-    manager: IntentManager = hass.data[DOMAIN][entry.entry_id][DATA_INTENT_MANAGER]
-
-    async_add_entities([YandexStationIntentMediaPlayer(manager)])
+    component: Component = hass.data[DOMAIN]
+    async_add_entities([YandexStationIntentMediaPlayer(component.entry_datas[entry.entry_id].intent_manager)])
 
 
 class YandexStationIntentMediaPlayer(MediaPlayerEntity):
