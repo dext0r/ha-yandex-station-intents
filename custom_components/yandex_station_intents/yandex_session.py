@@ -13,8 +13,6 @@ from .const import CONF_COOKIE, CONF_X_TOKEN
 
 _LOGGER = logging.getLogger(__name__)
 
-HEADERS = {"User-Agent": "com.yandex.mobile.auth.sdk/7.15.0.715001762"}
-
 RE_CSRF = re.compile('"csrfToken2":"(.+?)"')
 
 
@@ -87,15 +85,17 @@ class YandexSession:
                 raw = base64.b64decode(cookie)
                 cast(CookieJar, self._session.cookie_jar)._cookies = pickle.loads(raw)
 
-    async def login_cookies(self, cookies: dict[str, str]) -> LoginResponse:
-        payload = {
-            "grant_type": "sessionid",
-            "client_id": "c0ebe342af7d48fbbbfcf2d2eedb8f9e",
-            "client_secret": "ad0a908f0aa341a182a37ecd75bc319e",
-            "host": "passport.yandex.com",
-        }
+    async def login_cookies(self, host: str, cookies: dict[str, str]) -> LoginResponse:
         r = await self._session.post(
-            "https://mobileproxy.passport.yandex.net/1/token", data=payload, headers=HEADERS, cookies=cookies
+            "https://mobileproxy.passport.yandex.net/1/bundle/oauth/token_by_sessionid",
+            data={
+                "client_id": "c0ebe342af7d48fbbbfcf2d2eedb8f9e",
+                "client_secret": "ad0a908f0aa341a182a37ecd75bc319e",
+            },
+            headers={
+                "Ya-Client-Host": host,
+                "Ya-Client-Cookie": "; ".join([f"{k}={v}" for k, v in cookies.items()]),
+            },
         )
         resp = await r.json()
         if "error" in resp:
@@ -110,7 +110,7 @@ class YandexSession:
     async def validate_token(self, x_token: str) -> LoginResponse:
         headers = {"Authorization": f"OAuth {x_token}"}
         r = await self._session.get(
-            "https://mobileproxy.passport.yandex.net/1/bundle/account/" "short_info/?avatar_size=islands-300",
+            "https://mobileproxy.passport.yandex.net/1/bundle/account/short_info/?avatar_size=islands-300",
             headers=headers,
         )
         resp = await r.json()

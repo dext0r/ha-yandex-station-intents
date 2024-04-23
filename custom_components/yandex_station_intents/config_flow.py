@@ -72,12 +72,14 @@ class YandexSmartHomeIntentsFlowHandler(ConfigFlow, domain=DOMAIN):
 
     async def async_step_cookies(self, user_input: ConfigType) -> FlowResult:
         try:
-            cookies = {p["name"]: p["value"] for p in json.loads(user_input[AuthMethod.COOKIES])}
+            raw = json.loads(user_input[AuthMethod.COOKIES])
+            host = next(p["domain"] for p in raw if p["domain"].startswith(".yandex."))
+            cookies = {p["name"]: p["value"] for p in raw}
         except (TypeError, KeyError, json.decoder.JSONDecodeError):
             return await self._show_form(AuthMethod.COOKIES, errors={"base": "cookies.invalid_format"})
 
         try:
-            response = await self._session.login_cookies(cookies)
+            response = await self._session.login_cookies(host, cookies)
         except AuthException as e:
             _LOGGER.error(f"Ошибка авторизации: {e}")
             return await self._show_form(AuthMethod.COOKIES, errors={"base": "auth.error"})
