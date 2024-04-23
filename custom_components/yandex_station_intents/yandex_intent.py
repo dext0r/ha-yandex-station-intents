@@ -82,17 +82,15 @@ class BaseConverter:
 
 
 class IntentManager:
-    def __init__(self, hass: HomeAssistant, intents_config: ConfigType | None) -> None:
+    def __init__(self, hass: HomeAssistant, intents_config: ConfigType) -> None:
         self._hass = hass
         self._last_command_at: datetime | None = None
         self._command_execution_loop_count: int = 0
 
         self.intents: list[Intent] = []
 
-        if not intents_config:
-            return
-
-        for idx, (name, config) in enumerate(intents_config.items(), 0):
+        for idx, name in enumerate(sorted(intents_config.keys(), key=lambda k: k.lower()), 0):
+            config = intents_config[name]
             say_phrase = config.get(CONF_INTENT_SAY_PHRASE)
             intent = Intent(
                 id=idx,
