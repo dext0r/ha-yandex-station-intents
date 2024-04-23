@@ -4,11 +4,10 @@ import pickle
 import re
 from typing import Any, cast
 
-from aiohttp import ClientResponse, ClientWebSocketResponse, CookieJar, __version__ as aiohttp_version
+from aiohttp import ClientResponse, ClientWebSocketResponse, CookieJar
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
-from pkg_resources import parse_version
 
 from .const import CONF_COOKIE, CONF_X_TOKEN
 
@@ -86,17 +85,7 @@ class YandexSession:
             cookie = self._entry.data.get(CONF_COOKIE)
             if cookie:
                 raw = base64.b64decode(cookie)
-                cookies = pickle.loads(raw)
-
-                # https://github.com/aio-libs/aiohttp/pull/6638
-                # https://github.com/aio-libs/aiohttp/issues/7216
-                if parse_version(aiohttp_version) >= parse_version("3.8.4") and isinstance(list(cookies)[0], str):
-                    cookies_by_name = [(name, c) for sc in cookies.values() for name, c in sc.items()]
-                    cookies.clear()
-                    for name, c in cookies_by_name:
-                        cookies[(c["domain"], c["path"])][name] = c
-
-                cast(CookieJar, self._session.cookie_jar)._cookies = cookies
+                cast(CookieJar, self._session.cookie_jar)._cookies = pickle.loads(raw)
 
     async def login_cookies(self, cookies: dict[str, str]) -> LoginResponse:
         payload = {
