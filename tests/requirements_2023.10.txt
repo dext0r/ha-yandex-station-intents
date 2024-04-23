@@ -1,0 +1,2 @@
+pytest-homeassistant-custom-component==0.13.63
+voluptuous-stubs==0.1.1
