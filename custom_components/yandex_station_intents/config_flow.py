@@ -76,13 +76,12 @@ class YandexSmartHomeIntentsFlowHandler(ConfigFlow, domain=DOMAIN):
             host = next(p["domain"] for p in raw if p["domain"].startswith(".yandex."))
             cookies = {p["name"]: p["value"] for p in raw}
         except (TypeError, KeyError, json.decoder.JSONDecodeError):
-            return await self._show_form(AuthMethod.COOKIES, errors={"base": "cookies.invalid_format"})
+            return await self._show_form(AuthMethod.COOKIES, error_code="cookies.invalid_format")
 
         try:
             response = await self._session.login_cookies(host, cookies)
         except AuthException as e:
-            _LOGGER.error(f"Ошибка авторизации: {e}")
-            return await self._show_form(AuthMethod.COOKIES, errors={"base": "auth.error"})
+            return await self._show_form(AuthMethod.COOKIES, error_code="auth.error", error_description=str(e))
 
         return await self._check_yandex_response(response, AuthMethod.COOKIES)
 
@@ -90,10 +89,17 @@ class YandexSmartHomeIntentsFlowHandler(ConfigFlow, domain=DOMAIN):
         response = await self._session.validate_token(user_input[AuthMethod.TOKEN])
         return await self._check_yandex_response(response, AuthMethod.TOKEN)
 
-    async def _show_form(self, method: AuthMethod, errors: dict[str, str] | None = None) -> FlowResult:
+    async def _show_form(
+        self, method: AuthMethod, error_code: str | None = None, error_description: str | None = None
+    ) -> FlowResult:
+        errors = {}
+        if error_code:
+            errors["base"] = error_code
+
         return self.async_show_form(
             step_id=str(method),
             errors=errors,
+            description_placeholders={"error_description": error_description},
             data_schema=vol.Schema({vol.Required(str(method)): str}),
         )
 
@@ -103,7 +109,6 @@ class YandexSmartHomeIntentsFlowHandler(ConfigFlow, domain=DOMAIN):
             return self.async_create_entry(title=response.display_login, data={CONF_X_TOKEN: response.x_token})
 
         elif response.error:
-            _LOGGER.error(f"Ошибка авторизации: {response.error}")
-            return await self._show_form(method, errors={"base": "auth.error"})
+            return await self._show_form(method, error_code="auth.error", error_description=response.error)
 
         raise NotImplementedError

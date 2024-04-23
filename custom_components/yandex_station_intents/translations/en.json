@@ -5,7 +5,7 @@
     },
     "error": {
       "cookies.invalid_format": "Это не похоже на JSON из расширения Copy Cookies",
-      "auth.error": "Ошибка авторизации, проверьте журнал Home Assistant"
+      "auth.error": "Ошибка авторизации: {error_description}"
     },
     "step": {
       "user": {
