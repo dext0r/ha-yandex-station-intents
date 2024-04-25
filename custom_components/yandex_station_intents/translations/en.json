@@ -1,39 +1,46 @@
 {
   "config": {
     "abort": {
-      "install_yandex_station": "Чтобы воспользоваться этим способом авторизации установите и настройте интеграцию [Yandex.Station](https://github.com/AlexxIT/YandexStation)"
+      "install_yandex_station": "Интеграция [Yandex.Station](https://github.com/AlexxIT/YandexStation) не установлена или не настроена"
     },
     "error": {
       "cookies.invalid_format": "Это не похоже на JSON из расширения Copy Cookies",
-      "auth.error": "Ошибка авторизации: {error_description}"
+      "auth.error": "{error_description}"
     },
     "step": {
       "user": {
-        "title": "Выберите способ авторизации",
-        "data": {
-          "method": "Способ авторизации"
-        }
+        "title": "Вход в Яндекс"
       },
       "cookies": {
-        "title": "Авторизация через cookies",
-        "description": "* Установите расширение [Copy Cookies](https://chrome.google.com/webstore/detail/copy-cookies/jcbpglbplpblnagieibnemmkiamekcdg) в Google Chrome или Yandex Browser\n* Авторизуйтесь на [id.yandex.ru](https://id.yandex.ru)\n* Скопируйте сюда cookies с помощью расширения",
+        "title": "Вход через cookies",
+        "description": "* Установите расширение [Copy Cookies](https://chrome.google.com/webstore/detail/copy-cookies/jcbpglbplpblnagieibnemmkiamekcdg) в Google Chrome или Yandex Browser\n* Войдите в профиль на [id.yandex.ru](https://id.yandex.ru)\n* Скопируйте сюда cookies с помощью расширения",
         "data": {
           "cookies": "Cookies JSON"
         }
       },
       "token": {
-        "title": "Авторизация через токен",
+        "title": "Вход через токен",
         "description": "Вы можете перенести токен с другого сервера Home Assistant или компонента Yandex Station. Его можно найти в файле `/config/.storage/core.config_entries` (ищите по `x_token`)",
         "data": {
           "token": "Токен"
         }
       },
       "yandex_station": {
-        "title": "Авторизация через Yandex.Station",
+        "title": "Вход через Yandex.Station",
         "data": {
-          "account": "Аккаунт Яндекса"
+          "account": "Аккаунт"
         }
       }
+    }
+  },
+  "issues": {
+    "reauth_required": {
+      "title": "Требуется повторная аутентификация",
+      "description": "Возможно данные для входа в аккаунт `{entity}` устарели.\n\nДобавьте интеграцию Yandex.Station Intents повторно для этого аккаунта."
+    },
+    "captcha": {
+      "title": "Проблема со входом в Яндекс",
+      "description": "В данный момент компонент не может подключиться к Яндексу из-за капчи при прохождение аутентификации (аккаунт `{entity}`)\n\nОбычно эта проблема устраняется автоматически в течение часа, никаких действий предпринимать не требуется."
     }
   }
 }

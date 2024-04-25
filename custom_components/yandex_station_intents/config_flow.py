@@ -8,9 +8,8 @@ from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.typing import ConfigType
 import voluptuous as vol
 
-from . import DOMAIN
+from . import DOMAIN, YandexSession
 from .const import CONF_X_TOKEN, YANDEX_STATION_DOMAIN
-from .yandex_session import AuthException, LoginResponse, YandexSession
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -75,40 +74,37 @@ class YandexSmartHomeIntentsFlowHandler(ConfigFlow, domain=DOMAIN):
             raw = json.loads(user_input[AuthMethod.COOKIES])
             host = next(p["domain"] for p in raw if p["domain"].startswith(".yandex."))
             cookies = {p["name"]: p["value"] for p in raw}
-        except (TypeError, KeyError, json.decoder.JSONDecodeError):
-            return await self._show_form(AuthMethod.COOKIES, error_code="cookies.invalid_format")
+        except (StopIteration, TypeError, KeyError, json.decoder.JSONDecodeError):
+            return await self._show_form(str(AuthMethod.COOKIES), error_code="cookies.invalid_format")
 
         try:
-            response = await self._session.login_cookies(host, cookies)
-        except AuthException as e:
-            return await self._show_form(AuthMethod.COOKIES, error_code="auth.error", error_description=str(e))
+            x_token = await self._session.async_get_x_token(host, cookies)
+        except Exception as e:
+            return await self._show_form(str(AuthMethod.COOKIES), error_code="auth.error", error_description=str(e))
 
-        return await self._check_yandex_response(response, AuthMethod.COOKIES)
+        return await self.async_step_token({AuthMethod.TOKEN: x_token})
 
     async def async_step_token(self, user_input: ConfigType) -> FlowResult:
-        response = await self._session.validate_token(user_input[AuthMethod.TOKEN])
-        return await self._check_yandex_response(response, AuthMethod.TOKEN)
+        x_token = user_input[AuthMethod.TOKEN]
+
+        try:
+            account = await self._session.async_get_account_info(x_token)
+        except Exception as e:
+            return await self._show_form(str(AuthMethod.TOKEN), error_code="auth.error", error_description=str(e))
+
+        await self.async_set_unique_id(account.display_login)
+        return self.async_create_entry(title=account.display_login, data={CONF_X_TOKEN: x_token})
 
     async def _show_form(
-        self, method: AuthMethod, error_code: str | None = None, error_description: str | None = None
+        self, step_id: str, error_code: str | None = None, error_description: str | None = None
     ) -> FlowResult:
         errors = {}
         if error_code:
             errors["base"] = error_code
 
         return self.async_show_form(
-            step_id=str(method),
+            step_id=step_id,
             errors=errors,
             description_placeholders={"error_description": error_description},
-            data_schema=vol.Schema({vol.Required(str(method)): str}),
+            data_schema=vol.Schema({vol.Required(step_id): str}),
         )
-
-    async def _check_yandex_response(self, response: LoginResponse, method: AuthMethod) -> FlowResult:
-        if response.ok:
-            await self.async_set_unique_id(response.display_login)
-            return self.async_create_entry(title=response.display_login, data={CONF_X_TOKEN: response.x_token})
-
-        elif response.error:
-            return await self._show_form(method, error_code="auth.error", error_description=response.error)
-
-        raise NotImplementedError

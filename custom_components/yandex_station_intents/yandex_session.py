@@ -1,72 +1,80 @@
 import base64
+from dataclasses import dataclass, field
+from http import HTTPStatus
 import logging
 import pickle
 import re
-from typing import Any, cast
+from typing import Any, Self, cast
 
-from aiohttp import ClientResponse, ClientWebSocketResponse, CookieJar
+from aiohttp import ClientResponse, ClientWebSocketResponse, CookieJar, hdrs
+import dacite
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 
-from .const import CONF_COOKIE, CONF_X_TOKEN
+from .const import CONF_COOKIE, CONF_X_TOKEN, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
+PASSPORT_URL = "https://mobileproxy.passport.yandex.net/1/bundle"
 RE_CSRF = re.compile('"csrfToken2":"(.+?)"')
+
+ISSUE_ID_REAUTH_REQUIRED = "reauth_required"
+ISSUE_ID_CAPTCHA = "captcha"
 
 
 class AuthException(Exception):
     pass
 
 
-class LoginResponse:
-    """
-    status: ok
-       uid: 1234567890
-       display_name: John
-       public_name: John
-       firstname: John
-       lastname: McClane
-       gender: m
-       display_login: j0hn.mcclane
-       normalized_display_login: j0hn-mcclane
-       native_default_email: j0hn.mcclane@yandex.ru
-       avatar_url: XXX
-       is_avatar_empty: True
-       public_id: XXX
-       access_token: XXX
-       cloud_token: XXX
-       x_token: XXX
-       x_token_issued_at: 1607490000
-       access_token_expires_in: 24650000
-       x_token_expires_in: 24650000
-    status: error
-       errors: [captcha.required]
-       captcha_image_url: XXX
-    status: error
-       errors: [account.not_found]
-       errors: [password.not_matched]
-    """
+class AuthErrorException(AuthException):
+    def __init__(self, error_codes: list[str]) -> None:
+        self._error_codes = error_codes
 
-    def __init__(self, resp: dict[str, Any]) -> None:
-        self.raw = resp
+    def __str__(self) -> str:
+        return "Ошибка аутентификации: " + ", ".join(self._error_codes)
 
-    @property
-    def ok(self) -> bool:
-        return bool(self.raw["status"] == "ok")
 
-    @property
-    def error(self) -> str:
-        return str(self.raw["errors"][0])
+class CaptchaException(AuthException):
+    def __str__(self) -> str:
+        return "Обнаружена CAPTCHA"
 
-    @property
-    def display_login(self) -> str:
-        return str(self.raw["display_login"])
 
-    @property
-    def x_token(self) -> str:
-        return str(self.raw["x_token"])
+@dataclass(kw_only=True)
+class PassportResponse:
+    status: str
+    errors: list[str] = field(default_factory=list)
+
+    def raise_for_error(self) -> None:
+        if self.status != "ok":
+            raise AuthErrorException(self.errors)
+
+    @classmethod
+    def from_json(cls, data: dict[str, Any]) -> Self:
+        base = dacite.from_dict(PassportResponse, data)
+        base.raise_for_error()
+
+        return dacite.from_dict(cls, data)
+
+
+@dataclass
+class XTokenResponse(PassportResponse):
+    token_type: str
+    access_token: str
+
+
+@dataclass
+class AuthTrackResponse(PassportResponse):
+    track_id: str
+    passport_host: str
+
+
+@dataclass
+class AccountInfo(PassportResponse):
+    uid: int
+    display_name: str
+    display_login: str
 
 
 class YandexSession:
@@ -85,93 +93,108 @@ class YandexSession:
                 raw = base64.b64decode(cookie)
                 cast(CookieJar, self._session.cookie_jar)._cookies = pickle.loads(raw)
 
-    async def login_cookies(self, host: str, cookies: dict[str, str]) -> LoginResponse:
-        r = await self._session.post(
-            "https://mobileproxy.passport.yandex.net/1/bundle/oauth/token_by_sessionid",
-            data={
-                "client_id": "c0ebe342af7d48fbbbfcf2d2eedb8f9e",
-                "client_secret": "ad0a908f0aa341a182a37ecd75bc319e",
-            },
-            headers={
-                "Ya-Client-Host": host,
-                "Ya-Client-Cookie": "; ".join([f"{k}={v}" for k, v in cookies.items()]),
-            },
-        )
-        resp = await r.json()
-        if "error" in resp:
-            raise AuthException(resp.get("error_description"))
-        if "access_token" not in resp:
-            raise AuthException("Отсутствует access_token")
-
-        x_token = resp["access_token"]
-
-        return await self.validate_token(x_token)
-
-    async def validate_token(self, x_token: str) -> LoginResponse:
-        headers = {"Authorization": f"OAuth {x_token}"}
-        r = await self._session.get(
-            "https://mobileproxy.passport.yandex.net/1/bundle/account/short_info/?avatar_size=islands-300",
-            headers=headers,
-        )
-        resp = await r.json()
-        resp["x_token"] = x_token
-
-        return LoginResponse(resp)
-
-    async def login_token(self, x_token: str) -> bool:
-        _LOGGER.debug("Авторизация в Яндекс с помощью токена")
-
+    async def _async_auth(self, x_token: str) -> None:
+        _LOGGER.debug("Аутентификация с помощью токена...")
         payload = {"type": "x-token", "retpath": "https://www.yandex.ru"}
         headers = {"Ya-Consumer-Authorization": f"OAuth {x_token}"}
-        r = await self._session.post(
-            "https://mobileproxy.passport.yandex.net/1/bundle/auth/x_token/", data=payload, headers=headers
-        )
-        resp = await r.json()
-        if resp["status"] != "ok":
-            _LOGGER.error(f"Ошибка авторизации: {resp}")
-            return False
+        r = await self._session.post(f"{PASSPORT_URL}/auth/x_token/", data=payload, headers=headers)
+        response = AuthTrackResponse.from_json(await r.json())
 
-        host = resp["passport_host"]
-        payload = {"track_id": resp["track_id"]}
-        r = await self._session.get(f"{host}/auth/session/", params=payload, allow_redirects=False)
-        assert r.status == 302, await r.read()
+        payload = {"track_id": response.track_id}
+        r = await self._session.get(f"{response.passport_host}/auth/session/", params=payload, allow_redirects=False)
+        if r.status != HTTPStatus.FOUND:
+            raise AuthErrorException(error_codes=["session.invalid_status_code"])
 
-        return True
+        location = r.headers.get(hdrs.LOCATION, "")
+        if "auth/finish" in location:
+            _LOGGER.debug("Аутентификация пройдена")
+            return
 
-    async def refresh_cookies(self) -> bool:
-        r = await self._session.get("https://quasar.yandex.ru/get_account_config")
-        resp = await r.json()
-        if resp["status"] == "ok":
-            return True
+        if "showcaptcha" in location:
+            raise CaptchaException
+
+        raise AuthErrorException(error_codes=["session.missing"])
+
+    @property
+    def _session_cookie(self) -> str:
+        # noinspection PyProtectedMember
+        raw = pickle.dumps(cast(CookieJar, self._session.cookie_jar)._cookies, pickle.HIGHEST_PROTOCOL)
+        return base64.b64encode(raw).decode()
+
+    async def async_get_x_token(self, host: str, cookies: dict[str, str]) -> str:
+        client_creds = {
+            "client_id": "c0ebe342af7d48fbbbfcf2d2eedb8f9e",
+            "client_secret": "ad0a908f0aa341a182a37ecd75bc319e",
+        }
+        headers = {
+            "Ya-Client-Host": host,  # passport.yandex.ru/com
+            "Ya-Client-Cookie": "; ".join([f"{k}={v}" for k, v in cookies.items()]),  # достаточно Session_id
+        }
+        r = await self._session.post(f"{PASSPORT_URL}/oauth/token_by_sessionid", data=client_creds, headers=headers)
+        response = XTokenResponse.from_json(await r.json())
+        return response.access_token
+
+    async def async_get_account_info(self, x_token: str) -> AccountInfo:
+        headers = {"Authorization": f"OAuth {x_token}"}
+        r = await self._session.get(f"{PASSPORT_URL}/account/short_info/?avatar_size=islands-300", headers=headers)
+        return AccountInfo.from_json(await r.json())
+
+    async def async_refresh(self) -> None:
+        assert self._entry
 
         if not self._x_token:
-            return False
+            raise AuthException("missing x_token")
 
-        ok = await self.login_token(self._x_token)
-        if ok and self._entry:
-            data = self._entry.data.copy()
-            data[CONF_COOKIE] = self._session_cookie
-            self._hass.config_entries.async_update_entry(self._entry, data=data)
+        try:
+            await self._async_auth(self._x_token)
+        except CaptchaException:
+            ir.async_create_issue(
+                self._hass,
+                DOMAIN,
+                f"{ISSUE_ID_CAPTCHA}_{self._entry.entry_id}",
+                is_fixable=False,
+                severity=ir.IssueSeverity.ERROR,
+                translation_key=ISSUE_ID_CAPTCHA,
+                translation_placeholders={"entity": self._entry.title},
+            )
+            raise
+        except AuthException:
+            ir.async_create_issue(
+                self._hass,
+                DOMAIN,
+                f"{ISSUE_ID_REAUTH_REQUIRED}_{self._entry.entry_id}",
+                is_fixable=False,
+                severity=ir.IssueSeverity.ERROR,
+                translation_key=ISSUE_ID_REAUTH_REQUIRED,
+                translation_placeholders={"entity": self._entry.title},
+            )
+            raise
 
-        return ok
+        data = self._entry.data.copy()
+        data[CONF_COOKIE] = self._session_cookie
+        self._hass.config_entries.async_update_entry(self._entry, data=data)
+
+    async def async_validate(self) -> bool:
+        r = await self._session.get("https://quasar.yandex.ru/get_account_config")
+        return r.status == HTTPStatus.OK and (await r.json()).get("status") == "ok"
 
     async def get(self, url: str, **kwargs: Any) -> ClientResponse:
-        return await self._request("get", url, **kwargs)
+        return await self._request(hdrs.METH_GET, url, **kwargs)
 
     async def post(self, url: str, **kwargs: Any) -> ClientResponse:
-        return await self._request("post", url, **kwargs)
+        return await self._request(hdrs.METH_POST, url, **kwargs)
 
     async def put(self, url: str, **kwargs: Any) -> ClientResponse:
-        return await self._request("put", url, **kwargs)
+        return await self._request(hdrs.METH_PUT, url, **kwargs)
 
     async def delete(self, url: str, **kwargs: Any) -> ClientResponse:
-        return await self._request("delete", url, **kwargs)
+        return await self._request(hdrs.METH_DELETE, url, **kwargs)
 
     async def ws_connect(self, *args: Any, **kwargs: Any) -> ClientWebSocketResponse:
         return await self._session.ws_connect(*args, **kwargs)
 
     async def _request(self, method: str, url: str, retry: int = 2, **kwargs: Any) -> ClientResponse:
-        if method != "get":
+        if method != hdrs.METH_GET:
             if self._csrf_token is None:
                 _LOGGER.debug("Обновление CSRF-токена")
                 r = await self._session.get("https://yandex.ru/quasar/iot")
@@ -183,29 +206,30 @@ class YandexSession:
 
             kwargs["headers"] = {"x-csrf-token": self._csrf_token}
 
-        r = await getattr(self._session, method)(url, **kwargs)
+        r = await getattr(self._session, method.lower())(url, **kwargs)
         response_text = (await r.text())[:1024]
-        if r.status == 200:
+        if r.status == HTTPStatus.OK:
+            if self._entry:
+                ir.async_delete_issue(self._hass, DOMAIN, f"{ISSUE_ID_CAPTCHA}_{self._entry.entry_id}")
+                ir.async_delete_issue(self._hass, DOMAIN, f"{ISSUE_ID_REAUTH_REQUIRED}_{self._entry.entry_id}")
+
             return r
-        elif r.status == 400:
+        elif r.status == HTTPStatus.BAD_REQUEST:
             retry = 0
-        elif r.status == 401:
-            # 401 - no cookies
-            await self.refresh_cookies()
-        elif r.status == 403:
-            # 403 - no x-csrf-token
+        elif r.status == HTTPStatus.UNAUTHORIZED:
+            try:
+                await self.async_refresh()
+            except AuthException as e:
+                if retry == 0:
+                    raise
+                _LOGGER.debug(e)
+        elif r.status == HTTPStatus.FORBIDDEN:
             self._csrf_token = None
         else:
-            _LOGGER.warning(f"{url} вернул {r.status}: {response_text}")
+            _LOGGER.warning(f"Неожиданный ответ от {url}: [{r.status}] {response_text}")
 
         if retry:
-            _LOGGER.debug(f"Повтор {method} {url}")
+            _LOGGER.debug(f"Повторный запрос {method} {url}")
             return await self._request(method, url, retry - 1, **kwargs)
 
-        raise Exception(f"{url} вернул {r.status}: {response_text}")
-
-    @property
-    def _session_cookie(self) -> str:
-        # noinspection PyProtectedMember
-        raw = pickle.dumps(cast(CookieJar, self._session.cookie_jar)._cookies, pickle.HIGHEST_PROTOCOL)
-        return base64.b64encode(raw).decode()
+        raise Exception(f"Неожиданный ответ от {url}: [{r.status}] {response_text}")

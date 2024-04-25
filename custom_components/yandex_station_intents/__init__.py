@@ -163,13 +163,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     component: Component = hass.data[DOMAIN]
     session = YandexSession(hass, entry)
     try:
-        if not await session.refresh_cookies():
-            hass.components.persistent_notification.async_create(
-                "Необходимо заново авторизоваться в Яндексе. Для этого "
-                "[добавьте новую интеграцию](/config/integrations) с тем же логином.",
-                title=NOTIFICATION_TITLE,
-            )
-            return False
+        if not await session.async_validate():
+            await session.async_refresh()
 
         manager = IntentManager(hass, component.intents_config)
         quasar = YandexQuasar(session)
