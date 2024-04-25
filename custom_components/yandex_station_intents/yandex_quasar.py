@@ -147,16 +147,20 @@ class YandexQuasar:
 
         return None
 
+    async def async_get_scenarios(self) -> list[dict[str, Any]]:
+        r = await self._session.get(f"{URL_USER}/scenarios")
+        resp = await r.json()
+        assert resp["status"] == "ok", resp
+        assert isinstance(resp["scenarios"], list)
+
+        return resp["scenarios"]
+
     async def async_get_intents(self) -> dict[str, str]:
         """Получает список интенетов, которые управляются компонентом."""
         _LOGGER.debug("Получение списка интентов")
 
-        r = await self._session.get(f"{URL_USER}/scenarios")
-        resp = await r.json()
-        assert resp["status"] == "ok", resp
-
         rv = {}
-        for scenario in resp["scenarios"]:
+        for scenario in await self.async_get_scenarios():
             if INTENT_ID_MARKER not in scenario["name"]:
                 continue
 
