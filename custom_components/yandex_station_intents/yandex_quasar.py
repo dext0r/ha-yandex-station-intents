@@ -20,6 +20,7 @@ from .yandex_session import YandexSession
 _LOGGER = logging.getLogger(__name__)
 
 URL_USER = "https://iot.quasar.yandex.ru/m/user"
+URL_V3_USER = "https://iot.quasar.yandex.ru/m/v3/user"
 DEFAULT_RECONNECTION_DELAY = 2
 MAX_RECONNECTION_DELAY = 180
 
@@ -118,6 +119,7 @@ class YandexQuasar:
         self._session = session
 
         self.devices: list[Device] = []
+        self.running = True
 
     async def async_init(self) -> None:
         _LOGGER.debug("Получение списка устройств")
@@ -213,7 +215,6 @@ class YandexQuasar:
         quasar_intents = await self.async_get_intents()
         for intent_name, intent_id in quasar_intents.items():
             if intent_name not in [i.name for i in active_intents]:
-                # noinspection PyBroadException
                 try:
                     _LOGGER.debug(f"Удаление сценария {intent_name!r}")
                     r = await self._session.delete(f"{URL_USER}/scenarios/{intent_id}")
@@ -228,9 +229,10 @@ class YandexQuasar:
         assert resp["status"] == "ok", resp
 
         for scenario in resp["scenarios"]:
+            if not self.running:
+                break
             scenario_id = scenario["id"]
             scenario_name = scenario["name"]
-            # noinspection PyBroadException
             try:
                 _LOGGER.debug(f"Удаление сценария {scenario_name!r}")
                 r = await self._session.delete(f"{URL_USER}/scenarios/{scenario_id}")
@@ -238,6 +240,9 @@ class YandexQuasar:
                 assert resp["status"] == "ok", resp
             except Exception:
                 _LOGGER.exception(f"Ошибка удаления сценария {scenario_name!r}")
+
+    def stop(self) -> None:
+        self.running = False
 
     @staticmethod
     def _is_supported_device(device: ConfigType) -> bool:
@@ -277,9 +282,8 @@ class EventStream:
         if not self._ws_active:
             return
 
-        # noinspection PyBroadException
         try:
-            r = await self._session.get("https://iot.quasar.yandex.ru/m/v3/user/devices")
+            r = await self._session.get(f"{URL_V3_USER}/devices")
             resp = await r.json()
             assert resp["status"] == "ok", resp
 
@@ -293,7 +297,6 @@ class EventStream:
 
             async for msg in cast(AsyncIterable[WSMessage], self._ws):
                 if msg.type == WSMsgType.TEXT:
-                    # noinspection PyBroadException
                     try:
                         await self._on_message(msg.json())
                     except Exception as e:

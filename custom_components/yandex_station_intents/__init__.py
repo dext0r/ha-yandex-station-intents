@@ -1,3 +1,4 @@
+import asyncio
 from dataclasses import dataclass
 import logging
 import re
@@ -30,7 +31,7 @@ from .const import (
 from .entry_data import ConfigEntryData
 from .yandex_intent import Intent, IntentManager
 from .yandex_quasar import EventStream, YandexQuasar
-from .yandex_session import YandexSession
+from .yandex_session import AuthException, YandexSession
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -140,10 +141,14 @@ async def async_setup(hass: HomeAssistant, yaml_config: ConfigType) -> bool:
         for entry in hass.config_entries.async_entries(DOMAIN):
             await hass.config_entries.async_reload(entry.entry_id)
 
-        # Синхронный режим использован специально для предотвращения быстрого нажатия кнопки перезагрузки
-        for entry_data in component.entry_datas.values():
-            if not entry_data.autosync:
-                await _async_setup_intents(entry_data.intent_manager.intents, entry_data.quasar)
+        await asyncio.gather(
+            *(
+                _async_setup_intents(entry_data.intent_manager.intents, entry_data.quasar)
+                for entry_data in component.entry_datas.values()
+                if not entry_data.autosync
+            ),
+            return_exceptions=True,
+        )
 
     hass.helpers.service.async_register_admin_service(DOMAIN, SERVICE_RELOAD, _handle_reload)
 
@@ -204,6 +209,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     component: Component = hass.data[DOMAIN]
     entry_data = component.entry_datas[entry.entry_id]
+    entry_data.quasar.stop()
 
     if entry_data.event_stream:
         hass.async_create_task(entry_data.event_stream.disconnect())
@@ -227,9 +233,17 @@ async def _async_setup_intents(
     quasar_intents = await quasar.async_get_intents()
 
     for item in intents:
+        if not quasar.running:
+            break
+
         try:
             await quasar.async_add_or_update_intent(
                 intent=item, intent_quasar_id=quasar_intents.get(item.name), target_device_id=target_device_id
             )
+        except AuthException:
+            _LOGGER.exception(
+                f"Ошибка создания или обновления сценария {item.scenario_name!r}, синхронизация остановлена"
+            )
+            break
         except Exception:
             _LOGGER.exception(f"Ошибка создания или обновления сценария {item.scenario_name!r}")
