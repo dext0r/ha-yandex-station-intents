@@ -17,6 +17,7 @@ import voluptuous as vol
 from .const import (
     CLEAR_CONFIRM_KEY,
     CLEAR_CONFIRM_TEXT,
+    CONF_ACCOUNTS,
     CONF_AUTOSYNC,
     CONF_INTENT_EXECUTE_COMMAND,
     CONF_INTENT_EXTRA_PHRASES,
@@ -103,6 +104,7 @@ CONFIG_SCHEMA = vol.Schema(
                                         ],
                                         vol.Optional(CONF_INTENT_SAY_PHRASE): string_or_template,
                                         vol.Optional(CONF_INTENT_EXECUTE_COMMAND): cv.template,
+                                        vol.Optional(CONF_ACCOUNTS): vol.All(cv.ensure_list, [cv.string]),
                                     }
                                 ),
                             ),
@@ -127,9 +129,16 @@ class Component:
     yaml_config: ConfigType
     entry_datas: dict[str, ConfigEntryData]
 
-    @property
-    def intents_config(self) -> ConfigType:
-        return dict(self.yaml_config.get(CONF_INTENTS, {}))
+    def get_intents_config(self, entry: ConfigEntry) -> ConfigType:
+        intents_config: ConfigType = {}
+        for name, config in self.yaml_config.get(CONF_INTENTS, {}).items():
+            if accounts := config.get(CONF_ACCOUNTS):
+                if entry.unique_id not in accounts:
+                    continue
+
+            intents_config[name] = config
+
+        return intents_config
 
 
 async def async_setup(hass: HomeAssistant, yaml_config: ConfigType) -> bool:
@@ -171,7 +180,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if not await session.async_validate():
             await session.async_refresh()
 
-        manager = IntentManager(hass, component.intents_config)
+        manager = IntentManager(hass, entry, component.get_intents_config(entry))
         quasar = YandexQuasar(session)
         await quasar.async_init()
     except Exception as e:

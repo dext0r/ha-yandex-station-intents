@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 import logging
 
 from homeassistant.components import media_player
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.template import Template
@@ -82,8 +83,9 @@ class BaseConverter:
 
 
 class IntentManager:
-    def __init__(self, hass: HomeAssistant, intents_config: ConfigType) -> None:
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, intents_config: ConfigType) -> None:
         self._hass = hass
+        self._entry = entry
         self._last_command_at: datetime | None = None
         self._command_execution_loop_count: int = 0
 
@@ -106,12 +108,12 @@ class IntentManager:
         if intent_id < len(self.intents):
             text = self.intents[intent_id].name
             _LOGGER.debug(f"Получена команда: {text}")
-            self._hass.bus.async_fire(EVENT_NAME, {"text": text})
+            self._hass.bus.async_fire(EVENT_NAME, {"text": text, "account": self._entry.unique_id})
 
     async def async_handle_phrase(self, phrase: str, event_data: ConfigType, yandex_station_entity_id: str) -> None:
         intent = self._intent_from_phrase(phrase)
         if intent:
-            event_data["text"] = intent.name
+            event_data.update({"text": intent.name, "account": self._entry.unique_id})
             _LOGGER.debug(f"Получена команда: {event_data!r}")
             self._hass.bus.async_fire(EVENT_NAME, event_data)
 
