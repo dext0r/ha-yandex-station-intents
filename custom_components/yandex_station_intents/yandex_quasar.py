@@ -34,7 +34,7 @@ class Device:
 
     @classmethod
     def from_dict(cls, data: ConfigType) -> Device:
-        kw = {"id": data["id"], "name": data["name"], "room": data.get("room")}
+        kw = {"id": data["id"], "name": data["name"], "room": data.get("room_name")}
 
         if "quasar_info" in data:
             kw["yandex_station_id"] = data["quasar_info"].get("device_id")
@@ -124,21 +124,17 @@ class YandexQuasar:
     async def async_init(self) -> None:
         _LOGGER.debug("Получение списка устройств")
 
-        r = await self._session.get(f"{URL_USER}/devices")
+        r = await self._session.get(f"{URL_V3_USER}/devices")
         resp = await r.json()
         assert resp["status"] == "ok", resp
 
-        for device in resp["speakers"]:
-            if self._is_supported_device(device):
-                self.devices.append(Device.from_dict(device))
+        for house in resp["households"]:
+            if "sharing_info" in house:
+                continue
 
-        for room in resp["rooms"]:
-            room_name = room["name"]
-
-            for device in room["devices"]:
-                if self._is_supported_device(device):
-                    device["room"] = room_name
-                    self.devices.append(Device.from_dict(device))
+            for device_config in house["all"]:
+                if self._is_supported_device(device_config):
+                    self.devices.append(Device.from_dict(device_config))
 
     async def async_get_intent_player_device_id(self) -> str | None:
         for device in self.devices:
