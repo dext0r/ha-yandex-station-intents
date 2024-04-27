@@ -1,6 +1,6 @@
 {
   "country": ["RU"],
-  "homeassistant": "2022.8",
+  "homeassistant": "2023.9",
   "name": "Yandex.Station Intents",
   "render_readme": true
 }
