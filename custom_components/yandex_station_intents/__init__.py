@@ -11,6 +11,7 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ConfigEntryNotReady, HomeAssistantError
 from homeassistant.helpers import config_validation as cv, issue_registry as ir, template as template_helper
 from homeassistant.helpers.reload import async_integration_yaml_config
+from homeassistant.helpers.service import async_register_admin_service
 from homeassistant.helpers.typing import ConfigType
 import voluptuous as vol
 
@@ -163,7 +164,7 @@ async def async_setup(hass: HomeAssistant, yaml_config: ConfigType) -> bool:
             return_exceptions=True,
         )
 
-    hass.helpers.service.async_register_admin_service(DOMAIN, SERVICE_RELOAD, _handle_reload)
+    async_register_admin_service(hass, DOMAIN, SERVICE_RELOAD, _handle_reload)
 
     async def _clear_scenarios(service: ServiceCall) -> None:
         if service.data.get(CLEAR_CONFIRM_KEY, "").lower() != CLEAR_CONFIRM_TEXT:
