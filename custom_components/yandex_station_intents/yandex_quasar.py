@@ -147,7 +147,7 @@ class YandexQuasar:
         return resp["scenarios"]
 
     async def async_get_intents(self) -> dict[str, str]:
-        """Получает список интенетов, которые управляются компонентом."""
+        """Получает список интентов, которые управляются компонентом."""
         _LOGGER.debug("Получение списка интентов")
 
         rv = {}
