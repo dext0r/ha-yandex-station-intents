@@ -349,23 +349,20 @@ class EventStream:
                 if cap_state["instance"] in ["text_action", "phrase_action"] and INTENT_ID_MARKER in cap_state["value"]:
                     _LOGGER.debug(f"Интент обнаружен в событии: {dev!r}")
 
+                    yandex_station_entity_id: str | None = None
+                    event_data: ConfigType = {}
+
                     for device in self._quasar.devices:
                         if device.id != dev["id"] or not device.yandex_station_id:
                             continue
 
-                        phrase = cap_state["value"]
-                        entity_id = self._entity_registry.async_get_entity_id(
-                            media_player.DOMAIN, YANDEX_STATION_DOMAIN, device.yandex_station_id
-                        )
-                        if not entity_id:
-                            _LOGGER.warning(
-                                f"Не найдена колонка {device.yandex_station_id} для события {phrase!r}. "
-                                f"Интеграция Yandex.Station установлена и настроена?"
-                            )
-                            continue
-
-                        event_data = {ATTR_ENTITY_ID: entity_id}
                         if device.room:
                             event_data["room"] = device.room
 
-                        await self._manager.async_handle_phrase(phrase, event_data, entity_id)
+                        yandex_station_entity_id = self._entity_registry.async_get_entity_id(
+                            media_player.DOMAIN, YANDEX_STATION_DOMAIN, device.yandex_station_id
+                        )
+                        if yandex_station_entity_id:
+                            event_data[ATTR_ENTITY_ID] = yandex_station_entity_id
+
+                    await self._manager.async_handle_phrase(cap_state["value"], event_data, yandex_station_entity_id)

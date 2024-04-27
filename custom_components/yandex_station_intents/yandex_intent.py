@@ -6,6 +6,7 @@ from homeassistant.components import media_player
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import InvalidStateError, ServiceNotFound
 from homeassistant.helpers.template import Template
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.util import dt
@@ -110,18 +111,31 @@ class IntentManager:
             _LOGGER.debug(f"Получена команда: {text}")
             self._hass.bus.async_fire(EVENT_NAME, {"text": text, "account": self._entry.unique_id})
 
-    async def async_handle_phrase(self, phrase: str, event_data: ConfigType, yandex_station_entity_id: str) -> None:
+    async def async_handle_phrase(
+        self, phrase: str, event_data: ConfigType, yandex_station_entity_id: str | None
+    ) -> None:
         intent = self._intent_from_phrase(phrase)
         if intent:
             event_data.update({"text": intent.name, "account": self._entry.unique_id})
             _LOGGER.debug(f"Получена команда: {event_data!r}")
             self._hass.bus.async_fire(EVENT_NAME, event_data)
 
-            if intent.execute_command:
-                await self._execute_command(intent, event_data, yandex_station_entity_id)
+            try:
+                if not yandex_station_entity_id:
+                    raise InvalidStateError
 
-            if intent.say_phrase_template:
-                await self._tts(intent, event_data, yandex_station_entity_id)
+                if intent.execute_command:
+                    await self._execute_command(intent, event_data, yandex_station_entity_id)
+
+                if intent.say_phrase_template:
+                    await self._tts(intent, event_data, yandex_station_entity_id)
+            except (ServiceNotFound, InvalidStateError):
+                _LOGGER.warning(
+                    f"В Home Assistant не найдена колонка для события {phrase!r}. "
+                    f"Интеграция Yandex.Station установлена и настроена?"
+                )
+        else:
+            _LOGGER.warning(f"Не найден интент для события {phrase}")
 
     async def _execute_command(self, intent: Intent, event_data: ConfigType, yandex_station_entity_id: str) -> None:
         assert intent.execute_command
