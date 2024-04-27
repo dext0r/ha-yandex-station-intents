@@ -13,7 +13,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 
-from .const import CONF_COOKIE, CONF_X_TOKEN, DOMAIN
+from .const import CONF_COOKIE, CONF_UID, CONF_X_TOKEN, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -172,6 +172,8 @@ class YandexSession:
 
         data = self._entry.data.copy()
         data[CONF_COOKIE] = self._session_cookie
+        if CONF_UID not in data:
+            data[CONF_UID] = (await self.async_get_account_info(self._x_token)).uid
         self._hass.config_entries.async_update_entry(self._entry, data=data)
 
     async def async_validate(self) -> bool:

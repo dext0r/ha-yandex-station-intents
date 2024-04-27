@@ -13,7 +13,7 @@ from homeassistant.helpers import entity_registry
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.typing import ConfigType
 
-from .const import INTENT_ID_MARKER, INTENT_PLAYER_NAME, YANDEX_STATION_DOMAIN
+from .const import DOMAIN, INTENT_ID_MARKER, YANDEX_STATION_DOMAIN
 from .yandex_intent import Intent, IntentManager
 from .yandex_session import YandexSession
 
@@ -30,16 +30,18 @@ class Device:
     id: str
     name: str
     room: str | None = None
+    entity_id: str | None = None
     yandex_station_id: str | None = None
 
     @classmethod
     def from_dict(cls, data: ConfigType) -> Device:
-        kw = {"id": data["id"], "name": data["name"], "room": data.get("room_name")}
-
-        if "quasar_info" in data:
-            kw["yandex_station_id"] = data["quasar_info"].get("device_id")
-
-        return Device(**kw)
+        return Device(
+            id=data["id"],
+            name=data["name"],
+            room=data.get("room_name"),
+            entity_id=data.get("parameters", {}).get("device_info", {}).get("model"),
+            yandex_station_id=data.get("quasar_info", {}).get("device_id"),
+        )
 
 
 class ScenarioStep:
@@ -136,13 +138,6 @@ class YandexQuasar:
                 if self._is_supported_device(device_config):
                     self.devices.append(Device.from_dict(device_config))
 
-    async def async_get_intent_player_device_id(self) -> str | None:
-        for device in self.devices:
-            if device.name == INTENT_PLAYER_NAME:
-                return device.id
-
-        return None
-
     async def async_get_scenarios(self) -> list[dict[str, Any]]:
         r = await self._session.get(f"{URL_USER}/scenarios")
         resp = await r.json()
@@ -165,16 +160,16 @@ class YandexQuasar:
         return rv
 
     async def async_add_or_update_intent(
-        self, intent: Intent, intent_quasar_id: str | None, target_device_id: str | None
+        self, intent: Intent, intent_quasar_id: str | None, target_device: Device | None
     ) -> None:
         steps: list[ScenarioStep] = []
 
-        if target_device_id:
+        if target_device:
             steps.append(
                 ScenarioStep(
                     launch_devices=[
                         {
-                            "id": target_device_id,
+                            "id": target_device.id,
                             "capabilities": [
                                 {
                                     "type": "devices.capabilities.range",
@@ -210,6 +205,13 @@ class YandexQuasar:
 
         resp = await r.json()
         assert resp["status"] == "ok", resp
+
+    def get_intent_player_device(self, entity_id: str) -> Device | None:
+        for device in self.devices:
+            if device.entity_id == entity_id:
+                return device
+
+        return None
 
     async def delete_stale_intents(self, active_intents: list[Intent]) -> None:
         quasar_intents = await self.async_get_intents()
@@ -259,6 +261,10 @@ class YandexQuasar:
 
         # devices.types.media_device.dongle.yandex.module_2
         if "dongle.yandex.module" in device_type:
+            return True
+
+        # Служебный плеер для mode=device
+        if DOMAIN in device.get("parameters", {}).get("device_info", {}).get("model", ""):
             return True
 
         return False

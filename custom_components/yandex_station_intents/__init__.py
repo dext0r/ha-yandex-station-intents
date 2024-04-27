@@ -9,7 +9,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP, SERVICE_RELOAD
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ConfigEntryNotReady, HomeAssistantError
-from homeassistant.helpers import config_validation as cv, template as template_helper
+from homeassistant.helpers import config_validation as cv, issue_registry as ir, template as template_helper
 from homeassistant.helpers.reload import async_integration_yaml_config
 from homeassistant.helpers.typing import ConfigType
 import voluptuous as vol
@@ -24,19 +24,19 @@ from .const import (
     CONF_INTENT_SAY_PHRASE,
     CONF_INTENTS,
     CONF_MODE,
+    CONF_UID,
     DOMAIN,
-    INTENT_PLAYER_NAME,
-    NOTIFICATION_TITLE,
     ConnectionMode,
 )
 from .entry_data import ConfigEntryData
 from .yandex_intent import Intent, IntentManager
-from .yandex_quasar import EventStream, YandexQuasar
+from .yandex_quasar import Device, EventStream, YandexQuasar
 from .yandex_session import AuthException, YandexSession
 
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: Final[list[str]] = [media_player.DOMAIN]
+ISSUE_ID_MISSING_INTENT_PLAYER = "missing_intent_player"
 
 
 def intents_config_validate(intents_config: ConfigType) -> ConfigType:
@@ -152,7 +152,11 @@ async def async_setup(hass: HomeAssistant, yaml_config: ConfigType) -> bool:
 
         await asyncio.gather(
             *(
-                _async_setup_intents(entry_data.intent_manager.intents, entry_data.quasar)
+                _async_setup_intents(
+                    entry_data.intent_manager.intents,
+                    entry_data.quasar,
+                    entry_data.quasar.get_intent_player_device(entry_data.media_player_entity_id),
+                )
                 for entry_data in component.entry_datas.values()
                 if not entry_data.autosync
             ),
@@ -177,7 +181,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     component: Component = hass.data[DOMAIN]
     session = YandexSession(hass, entry)
     try:
-        if not await session.async_validate():
+        if not await session.async_validate() or CONF_UID not in entry.data:
             await session.async_refresh()
 
         manager = IntentManager(hass, entry, component.get_intents_config(entry))
@@ -186,31 +190,39 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except Exception as e:
         raise ConfigEntryNotReady(e)
 
-    entry_data = ConfigEntryData(yaml_config=component.yaml_config, quasar=quasar, intent_manager=manager)
+    entry_data = ConfigEntryData(entry, yaml_config=component.yaml_config, quasar=quasar, intent_manager=manager)
     component.entry_datas[entry.entry_id] = entry_data
+    intent_player_device = quasar.get_intent_player_device(entry_data.media_player_entity_id)
 
     if entry_data.connection_mode == ConnectionMode.DEVICE:
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-        device_id = await quasar.async_get_intent_player_device_id()
-        if not device_id:
-            hass.components.persistent_notification.async_create(
-                f"Служебный плеер **{INTENT_PLAYER_NAME}** не найден в УДЯ. Убедитесь, что он разрешён в фильтрах в "
-                f"компоненте Yandex Smart Home, обновите список устройств в УДЯ и перезагрузите эту интеграцию.",
-                title=NOTIFICATION_TITLE,
+        if not intent_player_device:
+            ir.async_create_issue(
+                hass,
+                DOMAIN,
+                f"{ISSUE_ID_MISSING_INTENT_PLAYER}_{entry.entry_id}",
+                is_fixable=False,
+                severity=ir.IssueSeverity.CRITICAL,
+                translation_key=ISSUE_ID_MISSING_INTENT_PLAYER,
+                translation_placeholders={
+                    "entity": entry.title,
+                    "player_entity_id": entry_data.media_player_entity_id,
+                    "player_name": entry_data.media_player_name,
+                },
             )
+            _LOGGER.error(f"В УДЯ не найден служебный плеер {entry_data.media_player_name}")
             return False
 
-        if entry_data.autosync:
-            hass.loop.create_task(_async_setup_intents(manager.intents, quasar, device_id))
+        ir.async_delete_issue(hass, DOMAIN, f"{ISSUE_ID_MISSING_INTENT_PLAYER}_{entry.entry_id}")
     else:
         event_stream = EventStream(hass, session, quasar, manager)
         component.entry_datas[entry.entry_id].event_stream = event_stream
         hass.loop.create_task(event_stream.connect())
         entry.async_on_unload(hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, event_stream.disconnect))
 
-        if entry_data.autosync:
-            hass.loop.create_task(_async_setup_intents(manager.intents, quasar))
+    if entry_data.autosync:
+        hass.loop.create_task(_async_setup_intents(manager.intents, quasar, intent_player_device))
 
     return True
 
@@ -235,7 +247,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def _async_setup_intents(
-    intents: list[Intent], quasar: YandexQuasar, target_device_id: str | None = None
+    intents: list[Intent], quasar: YandexQuasar, target_device: Device | None = None
 ) -> None:
     await quasar.delete_stale_intents(intents)
 
@@ -247,7 +259,7 @@ async def _async_setup_intents(
 
         try:
             await quasar.async_add_or_update_intent(
-                intent=item, intent_quasar_id=quasar_intents.get(item.name), target_device_id=target_device_id
+                intent=item, intent_quasar_id=quasar_intents.get(item.name), target_device=target_device
             )
         except AuthException:
             _LOGGER.exception(

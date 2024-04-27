@@ -9,7 +9,7 @@ from homeassistant.helpers.typing import ConfigType
 import voluptuous as vol
 
 from . import DOMAIN, YandexSession
-from .const import CONF_X_TOKEN, YANDEX_STATION_DOMAIN
+from .const import CONF_UID, CONF_X_TOKEN, YANDEX_STATION_DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -93,7 +93,7 @@ class YandexSmartHomeIntentsFlowHandler(ConfigFlow, domain=DOMAIN):
             return await self._show_form(str(AuthMethod.TOKEN), error_code="auth.error", error_description=str(e))
 
         await self.async_set_unique_id(account.display_login)
-        return self.async_create_entry(title=account.display_login, data={CONF_X_TOKEN: x_token})
+        return self.async_create_entry(title=account.display_login, data={CONF_X_TOKEN: x_token, CONF_UID: account.uid})
 
     async def _show_form(
         self, step_id: str, error_code: str | None = None, error_description: str | None = None

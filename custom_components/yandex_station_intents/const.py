@@ -1,7 +1,6 @@
 from enum import StrEnum
 
 DOMAIN = "yandex_station_intents"
-NOTIFICATION_TITLE = "Yandex.Station Intents"
 YANDEX_STATION_DOMAIN = "yandex_station"
 
 CONF_ACCOUNTS = "accounts"
@@ -13,8 +12,9 @@ CONF_MODE = "mode"
 CONF_AUTOSYNC = "autosync"
 CONF_X_TOKEN = "x_token"
 CONF_COOKIE = "cookie"
+CONF_UID = "uid"
 
-INTENT_PLAYER_NAME = "Yandex Station Intents"
+INTENT_PLAYER_NAME_PREFIX = "Интенты"
 INTENT_ID_MARKER = "---"
 STATION_STUB_COMMAND = "Сделай громкость"
 
