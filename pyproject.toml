@@ -1,3 +1,26 @@
+[tool.poetry]
+name = "ha-yandex-station-intents"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = ">=3.12,<3.13"
+
+[tool.poetry.group.dev.dependencies]
+pre-commit = "^4.0.1"
+ruff = "^0.6.9"
+isort = "^5.13.2"
+black = "^24.10.0"
+
+[tool.poetry.group.test.dependencies]
+pytest-homeassistant-custom-component = "0.13.171"
+mypy-dev = "1.12.0a5"
+dacite = "^1.8.1"
+
+[tool.poetry.group.homeassistant.dependencies]
+homeassistant = "2024.10.0"
+colorlog = "^6.8.2"
+numpy = "*"
+
 [tool.black]
 line-length = 120
 
@@ -10,15 +33,16 @@ known_first_party = [
     "custom_components.yandex_station_intents",
     "tests",
 ]
-skip_glob= [".venv*/*"]
 
 [tool.ruff]
 target-version = "py311"
 line-length = 120
+
+[tool.ruff.lint]
 select = ["E", "F", "W", "T20", "Q"]
 
 [tool.mypy]
-python_version = 3.11
+python_version = 3.12
 follow_imports_for_stubs = true
 local_partial_types = true
 strict_equality = true
@@ -36,3 +60,7 @@ warn_unreachable = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+
+[[tool.mypy.overrides]]
+module = "custom_components.yandex_station.*"
+ignore_errors = true
