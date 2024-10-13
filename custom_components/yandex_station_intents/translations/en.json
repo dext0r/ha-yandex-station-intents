@@ -9,7 +9,10 @@
     },
     "step": {
       "user": {
-        "title": "Вход в Яндекс"
+        "title": "Вход в Яндекс",
+        "data": {
+          "method": " "
+        }
       },
       "cookies": {
         "title": "Вход через cookies",
