@@ -43,6 +43,16 @@ jobs:
             python-version: '3.12'
           - ha-version: '2024.5'
             python-version: '3.12'
+          - ha-version: '2024.6'
+            python-version: '3.12'
+          - ha-version: '2024.7'
+            python-version: '3.12'
+          - ha-version: '2024.8'
+            python-version: '3.12'
+          - ha-version: '2024.9'
+            python-version: '3.12'
+          - ha-version: '2024.10'
+            python-version: '3.12'
     steps:
       - uses: actions/checkout@v4
 
@@ -62,7 +72,7 @@ jobs:
           python -c 'from pathlib import Path; import homeassistant; (Path(homeassistant.__file__).parent / Path("py.typed")).touch()'
 
       - name: Type checking
-        run: mypy .
+        run: pip install mypy-dev==1.12.0a5 && mypy .
 
       - name: Test with pytest
         run: pytest
