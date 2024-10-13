@@ -38,13 +38,18 @@
 ## Установка
 **Способ 1:** [HACS](https://hacs.xyz/)
 
-HACS > Интеграции > 3 точки (правый верхний угол) > Пользовательские репозитории > URL: `dext0r/ha-yandex-station-intents`, Категория: `Интеграция` > Нажать `Добавить` > Подождать > Выбрать `Yandex.Station Intents` в списке новых репозиториев > Нажать `Скачать`
+* Установите и настройте [HACS](https://hacs.xyz/docs/use/#getting-started-with-hacs)
+* Откройте HACS --> Три точки в верхнем правом углу -> Пользовательские репозитории
+* Добавьте репозиторий `dext0r/ha-yandex-station-intents` (тип `Интеграция`)
+* В поиске найдите и откройте `Yandex.Station Intents` -> Скачать
+* Перезагрузите Home Assistant
 
-**Способ 2:**
+**Способ 2:** вручную, не рекомендуется
 
-Вручную скопируйте папку `custom_components/yandex_station_intents` из [latest release](https://github.com/dext0r/ha-yandex-station-intents/releases/latest) в директорию `/config/custom_components`
-
-После установки перезапустите Home Assistant.
+* Скачайте архив `yandex_station_intents.zip` из [последнего релиза](https://github.com/dext0r/ha-yandex-station-intents/releases/latest)
+* Создайте подкаталог `custom_components/yandex_station_intents` в каталоге где расположен файл `configuration.yaml`
+* Распакуйте содержимое архива в `custom_components/yandex_station_intents`
+* Перезагрузите Home Assistant
 
 
 ## Настройка

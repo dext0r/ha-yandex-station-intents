@@ -1,0 +1,29 @@
+name: Release
+
+on:
+  release:
+    types:
+      - published
+
+permissions:
+  contents: write
+
+jobs:
+  release-zip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare release
+        run: |
+          cd ${{ github.workspace }}/custom_components/yandex_station_intents
+          zip -r yandex_station_intents.zip ./
+
+      - name: Upload zip
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ${{ github.workspace }}/custom_components/yandex_station_intents/yandex_station_intents.zip
+          asset_name: yandex_station_intents.zip
+          tag: ${{ github.ref }}
+          overwrite: true

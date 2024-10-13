@@ -1,6 +1,8 @@
 {
-  "country": ["RU"],
-  "homeassistant": "2023.9",
   "name": "Yandex.Station Intents",
-  "render_readme": true
+  "homeassistant": "2023.9",
+  "country": ["RU"],
+  "render_readme": true,
+  "zip_release": true,
+  "filename": "yandex_station_intents.zip"
 }
