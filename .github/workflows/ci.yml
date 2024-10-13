@@ -13,9 +13,9 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
@@ -37,8 +37,6 @@ jobs:
             python-version: '3.11'
           - ha-version: '2024.1'
             python-version: '3.11'
-          - ha-version: '2024.1'
-            python-version: '3.11'
           - ha-version: '2024.2'
             python-version: '3.12'
           - ha-version: '2024.4'
@@ -46,9 +44,9 @@ jobs:
           - ha-version: '2024.5'
             python-version: '3.12'
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -73,7 +71,7 @@ jobs:
     name: Validate for HACS
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: HACS validation
         uses: hacs/action@main
