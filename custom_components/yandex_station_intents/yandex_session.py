@@ -90,8 +90,14 @@ class YandexSession:
 
             cookie = self._entry.data.get(CONF_COOKIE)
             if cookie:
-                raw = base64.b64decode(cookie)
-                cast(CookieJar, self._session.cookie_jar)._cookies = pickle.loads(raw)
+                cookie_jar = cast(CookieJar, self._session.cookie_jar)
+                empty_cookies = cookie_jar._cookies
+                try:
+                    cookie_jar._cookies = pickle.loads(base64.b64decode(cookie))
+                    cookie_jar.clear(lambda _: False)
+                except Exception as e:
+                    _LOGGER.warning(f"Ошибка загрузки cookies: {e}")
+                    cookie_jar._cookies = empty_cookies
 
     async def _async_auth(self, x_token: str) -> None:
         _LOGGER.debug("Аутентификация с помощью токена...")
