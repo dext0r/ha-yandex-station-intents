@@ -16,7 +16,7 @@ CONF_UID = "uid"
 
 INTENT_PLAYER_NAME_PREFIX = "Интенты"
 INTENT_ID_MARKER = "---"
-STATION_STUB_COMMAND = "Сделай громкость"
+STATION_STUB_COMMAND = "ничего не делай"
 
 CLEAR_CONFIRM_KEY = "confirm"
 CLEAR_CONFIRM_TEXT = "я действительно хочу удалить все сценарии из удя"
