@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 import json
 import logging
@@ -21,6 +22,7 @@ _LOGGER = logging.getLogger(__name__)
 
 URL_USER = "https://iot.quasar.yandex.ru/m/user"
 URL_V3_USER = "https://iot.quasar.yandex.ru/m/v3/user"
+URL_V4_USER = "https://iot.quasar.yandex.ru/m/v4/user"
 DEFAULT_RECONNECTION_DELAY = 2
 MAX_RECONNECTION_DELAY = 180
 
@@ -44,76 +46,123 @@ class Device:
         )
 
 
-class ScenarioStep:
-    def __init__(self, value: str | None = None, launch_devices: list[Any] | None = None) -> None:
-        self._value = value
-        self._launch_devices = launch_devices or []
-        self._request_speaker_capabilities: list[dict[Any, Any]] = []
+class ScenarioStepItem(ABC):
+    """
+    Действие в сценариях.
+    """
+
+    @property
+    @abstractmethod
+    def as_dict(self) -> ConfigType:
+        pass
+
+
+class ScenarioStepItemDeviceChannel(ScenarioStepItem):
+    """
+    Действие "Канал X" для служебного плеера.
+    """
+
+    def __init__(self, device: Device, channel: int):
+        self._device = device
+        self._channel = channel
 
     @property
     def as_dict(self) -> ConfigType:
         return {
-            "type": "scenarios.steps.actions",
-            "parameters": {
-                "launch_devices": self._launch_devices,
-                "requested_speaker_capabilities": self._request_speaker_capabilities,
+            "id": self._device.id,
+            "type": "step.action.item.device",
+            "value": {
+                "id": self._device.id,
+                "capabilities": [
+                    {
+                        "type": "devices.capabilities.range",
+                        "state": {
+                            "instance": "channel",
+                            "value": self._channel,
+                        },
+                    }
+                ],
             },
         }
 
 
-class ScenarioStepTTS(ScenarioStep):
+class ScenarioStepItemRequestedDevice(ScenarioStepItem, ABC):
     """
-    Проговаривает текст полностью и только потом выполняет следующий шаг.
+    Действия из раздела "Любое умное устройство, которое активирует сценарий"
+    """
+
+    @property
+    def as_dict(self) -> ConfigType:
+        return {
+            "id": "requested-device",
+            "type": "step.action.item.requested_device_with_assistant",
+            "value": self._value,
+        }
+
+    @property
+    @abstractmethod
+    def _value(self) -> ConfigType:
+        pass
+
+
+class ScenarioStepItemRequestedDeviceTTS(ScenarioStepItemRequestedDevice):
+    """
+    Проговаривает текст на колонке, действие не попадает в список событий.
     В интерфейсе: "Прочитать текст вслух"
-    В список событий не попадает.
     """
 
-    def __init__(self, value: str, launch_devices: list[Any] | None = None) -> None:
-        super().__init__(value, launch_devices)
+    def __init__(self, text: str):
+        self._text = text
 
-        self._request_speaker_capabilities.append(
-            {
-                "parameters": {"instance": "tts"},
-                "retrievable": False,
-                "state": {"instance": "tts", "value": {"text": self._value}},
-                "type": "devices.capabilities.quasar",
-            }
-        )
+    @property
+    def _value(self) -> ConfigType:
+        return {
+            "type": "devices.capabilities.quasar",
+            "state": {
+                "instance": "tts",
+                "value": {"text": self._text},
+            },
+        }
 
 
-class ScenarioStepTextAction(ScenarioStep):
+class ScenarioStepItemRequestedDeviceTTSPA(ScenarioStepItemRequestedDevice):
+    """
+    Проговаривает текст на колонке, действие попадает в список событий.
+    В интерфейсе: отсутствует
+    """
+
+    def __init__(self, text: str):
+        self._text = text
+
+    @property
+    def _value(self) -> ConfigType:
+        return {
+            "type": "devices.capabilities.quasar.server_action",
+            "state": {
+                "instance": "phrase_action",
+                "value": self._text,
+            },
+        }
+
+
+class ScenarioStepItemRequestedDeviceTextAction(ScenarioStepItemRequestedDevice):
     """
     Выполняет команду на колонке.
     В интерфейсе: "Ответить на вопрос или выполнить команду"
     """
 
-    def __init__(self, value: str, launch_devices: list[Any] | None = None) -> None:
-        super().__init__(value, launch_devices)
+    def __init__(self, command: str):
+        self._command = command
 
-        self._request_speaker_capabilities.append(
-            {
-                "parameters": {"instance": "text_action"},
-                "state": {"instance": "text_action", "value": self._value},
-                "type": "devices.capabilities.quasar.server_action",
-            }
-        )
-
-
-class ScenarioStepPhraseAction(ScenarioStep):
-    """
-    Проговаривает текст и сразу выполняет следующую команду.
-    В интерфейсе: отсутствует
-    """
-
-    def __init__(self, value: str, launch_devices: list[Any] | None = None) -> None:
-        super().__init__(value, launch_devices)
-
-        self._request_speaker_capabilities.append(
-            {
-                "state": {"instance": "phrase_action", "value": self._value},
-                "type": "devices.capabilities.quasar.server_action",
-            }
-        )
+    @property
+    def _value(self) -> ConfigType:
+        return {
+            "type": "devices.capabilities.quasar.server_action",
+            "state": {
+                "instance": "text_action",
+                "value": self._command,
+            },
+        }
 
 
 class YandexQuasar:
@@ -160,48 +209,41 @@ class YandexQuasar:
         return rv
 
     async def async_add_or_update_intent(
-        self, intent: Intent, intent_quasar_id: str | None, target_device: Device | None
+        self, intent: Intent, intent_quasar_id: str | None, intent_player_device: Device | None
     ) -> None:
-        steps: list[ScenarioStep] = []
+        step_items: list[ScenarioStepItem] = []
 
-        if target_device:
-            steps.append(
-                ScenarioStep(
-                    launch_devices=[
-                        {
-                            "id": target_device.id,
-                            "capabilities": [
-                                {
-                                    "type": "devices.capabilities.range",
-                                    "state": {"instance": "channel", "relative": False, "value": intent.id},
-                                }
-                            ],
-                        }
-                    ]
-                )
-            )
-
-        if intent.say_phrase and intent.execute_command:
-            steps.append(ScenarioStepTTS(intent.say_phrase))
-            steps.append(ScenarioStepTextAction(intent.scenario_step_value))
-        elif intent.say_phrase:
-            steps.append(ScenarioStepPhraseAction(intent.scenario_step_value))
+        if intent_player_device:
+            if intent.say_phrase:
+                step_items.append(ScenarioStepItemRequestedDeviceTTS(intent.say_phrase))
+            step_items.append(ScenarioStepItemDeviceChannel(intent_player_device, intent.id))
         else:
-            steps.append(ScenarioStepTextAction(intent.scenario_step_value))
+            if intent.say_phrase and intent.execute_command:
+                step_items.append(ScenarioStepItemRequestedDeviceTTS(intent.say_phrase))
+                step_items.append(ScenarioStepItemRequestedDeviceTextAction(intent.scenario_text_command))
+            elif intent.say_phrase:
+                step_items.append(ScenarioStepItemRequestedDeviceTTSPA(intent.scenario_text_command))
+            else:
+                step_items.append(ScenarioStepItemRequestedDeviceTextAction(intent.scenario_text_command))
 
         payload = {
             "name": intent.scenario_name,
             "icon": "home",
             "triggers": [{"type": "scenario.trigger.voice", "value": v} for v in intent.trigger_phrases],
-            "steps": [s.as_dict for s in steps],
+            "steps": [
+                {
+                    "type": "scenarios.steps.actions.v2",
+                    "parameters": {"items": [si.as_dict for si in step_items]},
+                }
+            ],
         }
 
         if intent_quasar_id:
             _LOGGER.debug(f"Обновление сценария {intent.scenario_name!r}: {payload}")
-            r = await self._session.put(f"{URL_USER}/scenarios/{intent_quasar_id}", json=payload)
+            r = await self._session.put(f"{URL_V4_USER}/scenarios/{intent_quasar_id}", json=payload)
         else:
             _LOGGER.debug(f"Создание сценария {intent.scenario_name!r}: {payload}")
-            r = await self._session.post(f"{URL_USER}/scenarios", json=payload)
+            r = await self._session.post(f"{URL_V4_USER}/scenarios", json=payload)
 
         resp = await r.json()
         assert resp["status"] == "ok", resp

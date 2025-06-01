@@ -248,7 +248,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def _async_setup_intents(
-    intents: list[Intent], quasar: YandexQuasar, target_device: Device | None = None
+    intents: list[Intent], quasar: YandexQuasar, intent_player_device: Device | None = None
 ) -> None:
     await quasar.delete_stale_intents(intents)
 
@@ -260,7 +260,9 @@ async def _async_setup_intents(
 
         try:
             await quasar.async_add_or_update_intent(
-                intent=item, intent_quasar_id=quasar_intents.get(item.name), target_device=target_device
+                intent=item,
+                intent_quasar_id=quasar_intents.get(item.name),
+                intent_player_device=intent_player_device,
             )
         except AuthException:
             _LOGGER.exception(

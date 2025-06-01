@@ -40,7 +40,7 @@ class Intent:
         return f"{INTENT_ID_MARKER} {self.name}"
 
     @property
-    def scenario_step_value(self) -> str:
+    def scenario_text_command(self) -> str:
         rv = STATION_STUB_COMMAND
         if self.say_phrase and not self.execute_command:
             rv = self.say_phrase
