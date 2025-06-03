@@ -57,6 +57,20 @@ class ScenarioStepItem(ABC):
         pass
 
 
+class ScenarioStep:
+    """Группа действий в сценариях."""
+
+    def __init__(self, *items: ScenarioStepItem):
+        self._items = items
+
+    @property
+    def as_dict(self) -> ConfigType:
+        return {
+            "type": "scenarios.steps.actions.v2",
+            "parameters": {"items": [i.as_dict for i in self._items]},
+        }
+
+
 class ScenarioStepItemDeviceChannel(ScenarioStepItem):
     """
     Действие "Канал X" для служебного плеера.
@@ -211,31 +225,29 @@ class YandexQuasar:
     async def async_add_or_update_intent(
         self, intent: Intent, intent_quasar_id: str | None, intent_player_device: Device | None
     ) -> None:
-        step_items: list[ScenarioStepItem] = []
+        steps: list[ScenarioStep] = []
 
         if intent_player_device:
+            step_items: list[ScenarioStepItem] = [ScenarioStepItemDeviceChannel(intent_player_device, intent.id)]
             if intent.say_phrase:
-                step_items.append(ScenarioStepItemRequestedDeviceTTS(intent.say_phrase))
-            step_items.append(ScenarioStepItemDeviceChannel(intent_player_device, intent.id))
+                step_items.insert(0, ScenarioStepItemRequestedDeviceTTS(intent.say_phrase))
+            steps = [ScenarioStep(*step_items)]
         else:
             if intent.say_phrase and intent.execute_command:
-                step_items.append(ScenarioStepItemRequestedDeviceTTS(intent.say_phrase))
-                step_items.append(ScenarioStepItemRequestedDeviceTextAction(intent.scenario_text_command))
+                steps = [
+                    ScenarioStep(ScenarioStepItemRequestedDeviceTTS(intent.say_phrase)),
+                    ScenarioStep(ScenarioStepItemRequestedDeviceTextAction(intent.scenario_text_command)),
+                ]
             elif intent.say_phrase:
-                step_items.append(ScenarioStepItemRequestedDeviceTTSPA(intent.scenario_text_command))
+                steps = [ScenarioStep(ScenarioStepItemRequestedDeviceTTSPA(intent.scenario_text_command))]
             else:
-                step_items.append(ScenarioStepItemRequestedDeviceTextAction(intent.scenario_text_command))
+                steps = [ScenarioStep(ScenarioStepItemRequestedDeviceTextAction(intent.scenario_text_command))]
 
         payload = {
             "name": intent.scenario_name,
             "icon": "home",
             "triggers": [{"type": "scenario.trigger.voice", "value": v} for v in intent.trigger_phrases],
-            "steps": [
-                {
-                    "type": "scenarios.steps.actions.v2",
-                    "parameters": {"items": [si.as_dict for si in step_items]},
-                }
-            ],
+            "steps": [s.as_dict for s in steps],
         }
 
         if intent_quasar_id:
