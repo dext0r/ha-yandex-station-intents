@@ -1,25 +1,30 @@
-[tool.poetry]
+[project]
 name = "ha-yandex-station-intents"
-package-mode = false
+version = "0.6.4dev"
+requires-python = "~=3.13.2"
+dependencies = [
+    "dacite>=1.9.2",
+]
 
-[tool.poetry.dependencies]
-python = ">=3.12,<3.13"
-
-[tool.poetry.group.dev.dependencies]
-pre-commit = "^4.0.1"
-ruff = "^0.6.9"
-isort = "^5.13.2"
-black = "^24.10.0"
-
-[tool.poetry.group.test.dependencies]
-pytest-homeassistant-custom-component = "0.13.171"
-mypy-dev = "1.12.0a5"
-dacite = "^1.8.1"
-
-[tool.poetry.group.homeassistant.dependencies]
-homeassistant = "2024.10.0"
-colorlog = "^6.8.2"
-numpy = "*"
+[dependency-groups]
+test = [
+    "pytest-homeassistant-custom-component==0.13.262",
+    "mypy-dev==1.17.0a2",
+]
+homeassistant = [
+    "homeassistant==2025.7.2",
+    "colorlog>=6.9.0",
+]
+lint = [
+    "pre-commit==4.0.1",
+    "ruff==0.6.9",
+    "isort==5.13.2",
+    "black==24.10.0",
+]
+tox = [
+    "tox>=4.27.0",
+    "tox-uv>=1.26.0",
+]
 
 [tool.black]
 line-length = 120
@@ -42,7 +47,7 @@ line-length = 120
 select = ["E", "F", "W", "T20", "Q"]
 
 [tool.mypy]
-python_version = 3.12
+python_version = "3.13"
 follow_imports_for_stubs = true
 local_partial_types = true
 strict_equality = true
@@ -64,3 +69,60 @@ asyncio_mode = "auto"
 [[tool.mypy.overrides]]
 module = "custom_components.yandex_station.*"
 ignore_errors = true
+
+[tool.tox]
+env_list = [
+    "type",
+    "2024_11",
+    "2024_12",
+    "2025_1",
+    "2025_2",
+    "2025_4",
+    "2025_5",
+    "2025_6",
+    "2025_7",
+]
+
+[tool.tox.env_run_base]
+description = "Run test under {env_python}"
+base_python = ["py313"]
+runner = "uv-venv-lock-runner"
+commands = [
+    ["pytest"],
+]
+
+[tool.tox.env_run_base.setenv]
+PYTHONDONTWRITEBYTECODE = "1"
+MYPY_CACHE_DIR = "{env_dir}/.cache/mypy"
+
+[tool.tox.env.2024_11]
+base_python = ["py312"]
+uv_sync_flags = ["--directory=tests/env/2024_11"]
+
+[tool.tox.env.2024_12]
+uv_sync_flags = ["--directory=tests/env/2024_12"]
+
+[tool.tox.env.2025_1]
+uv_sync_flags = ["--directory=tests/env/2025_1"]
+
+[tool.tox.env.2025_2]
+uv_sync_flags = ["--directory=tests/env/2025_2"]
+
+[tool.tox.env.2025_4]
+uv_sync_flags = ["--directory=tests/env/2025_4"]
+
+[tool.tox.env.2025_5]
+uv_sync_flags = ["--directory=tests/env/2025_5"]
+
+[tool.tox.env.2025_6]
+uv_sync_flags = ["--directory=tests/env/2025_6"]
+
+[tool.tox.env.2025_7]
+uv_sync_flags = ["--directory=tests/env/2025_7"]
+
+[tool.tox.env.type]
+description = "Run type checks under {env_python}"
+dependency_groups = ["test"]
+commands = [
+    ["mypy", "."],
+]

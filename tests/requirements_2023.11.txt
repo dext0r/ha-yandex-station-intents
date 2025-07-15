@@ -1,3 +1,0 @@
-pytest-homeassistant-custom-component==0.13.70
-voluptuous-stubs==0.1.1
-dacite

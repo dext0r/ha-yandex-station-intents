@@ -214,7 +214,7 @@ class YandexSession:
 
             kwargs["headers"] = {"x-csrf-token": self._csrf_token}
 
-        r = await getattr(self._session, method.lower())(url, **kwargs)
+        r = cast(ClientResponse, await getattr(self._session, method.lower())(url, **kwargs))
         response_text = (await r.text())[:1024]
         if r.status == HTTPStatus.OK:
             if self._entry:

@@ -1,0 +1,8 @@
+[project]
+name = "yandex_station_intents_test_env"
+version = "2024.12"
+requires-python = "~=3.13.0"
+dependencies = [
+    "pytest-homeassistant-custom-component==0.13.195",
+    "dacite>=1.9.2",
+]

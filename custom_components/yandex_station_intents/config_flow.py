@@ -3,8 +3,7 @@ from functools import lru_cache
 import json
 import logging
 
-from homeassistant.config_entries import ConfigFlow
-from homeassistant.data_entry_flow import FlowResult
+from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.helpers.typing import ConfigType
 import voluptuous as vol
 
@@ -26,7 +25,7 @@ class YandexSmartHomeIntentsFlowHandler(ConfigFlow, domain=DOMAIN):
     def _session(self) -> YandexSession:
         return YandexSession(self.hass)
 
-    async def async_step_user(self, user_input: ConfigType | None = None) -> FlowResult:  # type: ignore
+    async def async_step_user(self, user_input: ConfigType | None = None) -> ConfigFlowResult:
         if user_input is None:
             return self.async_show_form(
                 step_id="user",
@@ -48,7 +47,7 @@ class YandexSmartHomeIntentsFlowHandler(ConfigFlow, domain=DOMAIN):
 
         return await self._show_form(user_input["method"])
 
-    async def async_step_yandex_station(self, user_input: ConfigType | None = None) -> FlowResult:
+    async def async_step_yandex_station(self, user_input: ConfigType | None = None) -> ConfigFlowResult:
         entries = self.hass.config_entries.async_entries(YANDEX_STATION_DOMAIN)
         if not entries:
             return self.async_abort(reason="install_yandex_station")
@@ -69,7 +68,7 @@ class YandexSmartHomeIntentsFlowHandler(ConfigFlow, domain=DOMAIN):
             ),
         )
 
-    async def async_step_cookies(self, user_input: ConfigType) -> FlowResult:
+    async def async_step_cookies(self, user_input: ConfigType) -> ConfigFlowResult:
         try:
             raw = json.loads(user_input[AuthMethod.COOKIES])
             host = next(p["domain"] for p in raw if p["domain"].startswith(".yandex."))
@@ -84,7 +83,7 @@ class YandexSmartHomeIntentsFlowHandler(ConfigFlow, domain=DOMAIN):
 
         return await self.async_step_token({AuthMethod.TOKEN: x_token})
 
-    async def async_step_token(self, user_input: ConfigType) -> FlowResult:
+    async def async_step_token(self, user_input: ConfigType) -> ConfigFlowResult:
         x_token = user_input[AuthMethod.TOKEN]
 
         try:
@@ -97,7 +96,7 @@ class YandexSmartHomeIntentsFlowHandler(ConfigFlow, domain=DOMAIN):
 
     async def _show_form(
         self, step_id: str, error_code: str | None = None, error_description: str | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         errors = {}
         if error_code:
             errors["base"] = error_code
@@ -105,6 +104,6 @@ class YandexSmartHomeIntentsFlowHandler(ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id=step_id,
             errors=errors,
-            description_placeholders={"error_description": error_description},
+            description_placeholders={"error_description": error_description or ""},
             data_schema=vol.Schema({vol.Required(step_id): str}),
         )
