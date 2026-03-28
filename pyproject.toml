@@ -1,6 +1,6 @@
 [project]
 name = "ha-yandex-station-intents"
-version = "0.6.4dev"
+version = "0.6.5.dev0"
 requires-python = "~=3.13.2"
 dependencies = [
     "dacite>=1.9.2",
