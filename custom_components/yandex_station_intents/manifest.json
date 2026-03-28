@@ -1,12 +1,12 @@
 {
   "domain": "yandex_station_intents",
   "name": "Yandex.Station Intents",
-  "config_flow": true,
-  "documentation": "https://github.com/dext0r/ha-yandex-station-intents",
-  "issue_tracker": "https://github.com/dext0r/ha-yandex-station-intents/issues",
   "codeowners": ["@dext0r"],
+  "config_flow": true,
   "dependencies": ["http"],
+  "documentation": "https://github.com/dext0r/ha-yandex-station-intents",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/dext0r/ha-yandex-station-intents/issues",
   "requirements": ["dacite"],
-  "version": "0.6.5.dev0",
-  "iot_class": "local_push"
+  "version": "0.6.5.dev0"
 }
