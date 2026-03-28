@@ -7,17 +7,11 @@ from homeassistant.components import media_player
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.typing import ConfigType
 
-from custom_components.yandex_station_intents import CONF_AUTOSYNC
-from custom_components.yandex_station_intents.const import (
-    CONF_MODE,
-    CONF_UID,
-    DOMAIN,
-    INTENT_PLAYER_NAME_PREFIX,
-    ConnectionMode,
-)
+from . import CONF_AUTOSYNC
+from .const import CONF_MODE, CONF_UID, DOMAIN, INTENT_PLAYER_NAME_PREFIX, ConnectionMode
 
 if TYPE_CHECKING:
-    from custom_components.yandex_station_intents import EventStream, IntentManager, YandexQuasar
+    from . import EventStream, IntentManager, YandexQuasar
 
 
 @dataclass

@@ -1,8 +1,14 @@
 import logging
-from typing import Any
+from typing import Any, override
 
-from homeassistant.components.media_player import MediaPlayerDeviceClass, MediaPlayerEntity
-from homeassistant.components.media_player.const import MediaPlayerEntityFeature, MediaPlayerState
+from homeassistant.components.media_player import (
+    MediaPlayerDeviceClass,
+    MediaPlayerEntity,
+)
+from homeassistant.components.media_player.const import (
+    MediaPlayerEntityFeature,
+    MediaPlayerState,
+)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -42,6 +48,7 @@ class YandexStationIntentMediaPlayer(MediaPlayerEntity):
     def device_class(self) -> MediaPlayerDeviceClass | None:
         return MediaPlayerDeviceClass.TV
 
+    @override
     async def async_play_media(self, media_type: str, media_id: str, **kwargs: Any) -> None:
         self._entry_data.intent_manager.event_from_id(int(media_id))
 

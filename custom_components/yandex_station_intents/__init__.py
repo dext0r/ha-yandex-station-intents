@@ -41,14 +41,12 @@ ISSUE_ID_MISSING_INTENT_PLAYER = "missing_intent_player"
 
 
 def intents_config_validate(intents_config: ConfigType) -> ConfigType:
-    names = set(map(lambda s: s.lower(), intents_config.keys()))
-    execute_commands = set(
-        [
-            c[CONF_INTENT_EXECUTE_COMMAND].template.lower()
-            for c in intents_config.values()
-            if CONF_INTENT_EXECUTE_COMMAND in c
-        ]
-    )
+    names = {s.lower() for s in intents_config}
+    execute_commands = {
+        c[CONF_INTENT_EXECUTE_COMMAND].template.lower()
+        for c in intents_config.values()
+        if CONF_INTENT_EXECUTE_COMMAND in c
+    }
 
     forbidden_phrases = execute_commands & names
     if forbidden_phrases:
@@ -67,7 +65,7 @@ def intents_config_validate(intents_config: ConfigType) -> ConfigType:
 def intent_item_validate(intent_item: str | ConfigType | None) -> ConfigType:
     if intent_item is None:
         return {}
-    elif isinstance(intent_item, str):
+    if isinstance(intent_item, str):
         return {CONF_INTENT_SAY_PHRASE: intent_item}
 
     return intent_item
@@ -133,9 +131,8 @@ class Component:
     def get_intents_config(self, entry: ConfigEntry) -> ConfigType:
         intents_config: ConfigType = {}
         for name, config in self.yaml_config.get(CONF_INTENTS, {}).items():
-            if accounts := config.get(CONF_ACCOUNTS):
-                if entry.unique_id not in accounts:
-                    continue
+            if (accounts := config.get(CONF_ACCOUNTS)) and entry.unique_id not in accounts:
+                continue
 
             intents_config[name] = config
 
@@ -189,7 +186,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         quasar = YandexQuasar(session)
         await quasar.async_init()
     except Exception as e:
-        raise ConfigEntryNotReady(e)
+        raise ConfigEntryNotReady(e) from e
 
     entry_data = ConfigEntryData(entry, yaml_config=component.yaml_config, quasar=quasar, intent_manager=manager)
     component.entry_datas[entry.entry_id] = entry_data

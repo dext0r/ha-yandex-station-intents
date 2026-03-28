@@ -27,35 +27,55 @@ homeassistant-components = [
     "mutagen>=1.47.0",
 ]
 lint = [
-    "pre-commit==4.0.1",
-    "ruff==0.6.9",
-    "isort==5.13.2",
-    "black==24.10.0",
+    "ruff==0.15.8",
 ]
 tox = [
     "tox>=4.27.0",
     "tox-uv>=1.26.0",
 ]
 
-[tool.black]
-line-length = 120
-
-[tool.isort]
-profile = "black"
-line_length = 120
-force_sort_within_sections = true
-combine_as_imports = true
-known_first_party = [
-    "custom_components.yandex_station_intents",
-    "tests",
-]
-
 [tool.ruff]
-target-version = "py311"
 line-length = 120
+target-version = "py313"
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "T20", "Q"]
+select = ["ALL"]
+ignore = [
+    "BLE",     # flake8-blind-except
+    "D",       # pydocstyle
+    "TD",      # flake8-todos
+    "FBT",     # flake8-boolean-trap
+    "ANN204",  # missing-return-type-special-method
+    "ANN401",  # any-type
+    "C901",    # complex-structure
+    "COM812",  # missing-trailing-comma
+    "EM101",   # raw-string-in-exception
+    "EM102",   # f-string-in-exception
+    "G004",    # logging-f-string
+    "PLR2004", # magic-value-comparison
+    "RUF001",  # ambiguous-unicode-character-string
+    "RUF002",  # ambiguous-unicode-character-docstring
+    "S101",    # assert
+    "S105",    # hardcoded-password-string
+    "TC001",   # typing-only-first-party-import
+    "TC002",   # typing-only-third-party-import
+    "TC006",   # runtime-cast-value
+    "TRY002",  # raise-vanilla-class
+    "TRY003",  # raise-vanilla-args
+    "TRY301",  # raise-within-try
+]
+
+[tool.ruff.lint.per-file-ignores]
+"custom_components/yandex_station_intents/yandex_session.py" = ["SLF001", "S301"]
+"tests/test_backward.py" = ["PLC0415"]
+
+[tool.ruff.lint.isort]
+force-sort-within-sections = true
+combine-as-imports = true
+
+[tool.pyright]
+reportPrivateImportUsage = "none"
+reportIncompatibleVariableOverride = "none"
 
 [tool.mypy]
 python_version = "3.13"

@@ -24,7 +24,7 @@ ISSUE_ID_REAUTH_REQUIRED = "reauth_required"
 ISSUE_ID_CAPTCHA = "captcha"
 
 
-class AuthException(Exception):
+class AuthException(Exception):  # noqa: N818
     pass
 
 
@@ -222,7 +222,8 @@ class YandexSession:
                 ir.async_delete_issue(self._hass, DOMAIN, f"{ISSUE_ID_REAUTH_REQUIRED}_{self._entry.entry_id}")
 
             return r
-        elif r.status == HTTPStatus.BAD_REQUEST:
+
+        if r.status == HTTPStatus.BAD_REQUEST:
             retry = 0
         elif r.status == HTTPStatus.UNAUTHORIZED:
             try:

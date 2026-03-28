@@ -21,7 +21,7 @@ class AuthMethod(StrEnum):
 
 class YandexSmartHomeIntentsFlowHandler(ConfigFlow, domain=DOMAIN):
     @property
-    @lru_cache()
+    @lru_cache  # noqa: B019
     def _session(self) -> YandexSession:
         return YandexSession(self.hass)
 

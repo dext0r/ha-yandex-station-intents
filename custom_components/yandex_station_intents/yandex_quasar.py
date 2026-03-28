@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterable
 from dataclasses import dataclass
 import json
 import logging
-from typing import Any, AsyncIterable, cast
+from typing import Any, cast
 
 from aiohttp import ClientConnectorError, ClientResponseError, ClientWebSocketResponse, WSMessage, WSMsgType
 from homeassistant.components import media_player
@@ -232,16 +233,15 @@ class YandexQuasar:
             if intent.say_phrase:
                 step_items.insert(0, ScenarioStepItemRequestedDeviceTTS(intent.say_phrase))
             steps = [ScenarioStep(*step_items)]
+        elif intent.say_phrase and intent.execute_command:
+            steps = [
+                ScenarioStep(ScenarioStepItemRequestedDeviceTTS(intent.say_phrase)),
+                ScenarioStep(ScenarioStepItemRequestedDeviceTextAction(intent.scenario_text_command)),
+            ]
+        elif intent.say_phrase:
+            steps = [ScenarioStep(ScenarioStepItemRequestedDeviceTTSPA(intent.scenario_text_command))]
         else:
-            if intent.say_phrase and intent.execute_command:
-                steps = [
-                    ScenarioStep(ScenarioStepItemRequestedDeviceTTS(intent.say_phrase)),
-                    ScenarioStep(ScenarioStepItemRequestedDeviceTextAction(intent.scenario_text_command)),
-                ]
-            elif intent.say_phrase:
-                steps = [ScenarioStep(ScenarioStepItemRequestedDeviceTTSPA(intent.scenario_text_command))]
-            else:
-                steps = [ScenarioStep(ScenarioStepItemRequestedDeviceTextAction(intent.scenario_text_command))]
+            steps = [ScenarioStep(ScenarioStepItemRequestedDeviceTextAction(intent.scenario_text_command))]
 
         payload = {
             "name": intent.scenario_name,
@@ -318,10 +318,7 @@ class YandexQuasar:
             return True
 
         # Служебный плеер для mode=device
-        if DOMAIN in device.get("parameters", {}).get("device_info", {}).get("model", ""):
-            return True
-
-        return False
+        return DOMAIN in device.get("parameters", {}).get("device_info", {}).get("model", "")
 
 
 class EventStream:
@@ -348,8 +345,8 @@ class EventStream:
             assert resp["status"] == "ok", resp
 
             url = resp["updates_url"]
-
-            _LOGGER.debug("Подключение к %s" % url.split("?")[0])
+            url_base = url.split("?")[0]
+            _LOGGER.debug(f"Подключение к {url_base}")
             self._ws = await self._session.ws_connect(url, heartbeat=45)
 
             _LOGGER.debug("Подключение к УДЯ установлено")
@@ -360,7 +357,7 @@ class EventStream:
                     try:
                         await self._on_message(msg.json())
                     except Exception as e:
-                        _LOGGER.exception(f"Неожиданное событие: {msg!r} ({e!r})")
+                        _LOGGER.exception(f"Неожиданное событие: {msg!r} ({e!r})")  # noqa: TRY401
 
             _LOGGER.debug(f"Отключено: {self._ws.close_code}")
             if self._ws.close_code is not None:

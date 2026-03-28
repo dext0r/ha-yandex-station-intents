@@ -100,7 +100,7 @@ class IntentManager:
                 name=name,
                 say_phrase=say_phrase if not isinstance(say_phrase, Template) else None,
                 say_phrase_template=say_phrase if isinstance(say_phrase, Template) else None,
-                trigger_phrases=[name] + config.get(CONF_INTENT_EXTRA_PHRASES, []),
+                trigger_phrases=[name, *config.get(CONF_INTENT_EXTRA_PHRASES, [])],
                 execute_command=config.get(CONF_INTENT_EXECUTE_COMMAND),
             )
             self.intents.append(intent)
