@@ -50,7 +50,12 @@ class YandexSmartHomeIntentsFlowHandler(ConfigFlow, domain=DOMAIN):
     async def async_step_yandex_station(self, user_input: ConfigType | None = None) -> ConfigFlowResult:
         entries = self.hass.config_entries.async_entries(YANDEX_STATION_DOMAIN)
         if not entries:
-            return self.async_abort(reason="install_yandex_station")
+            return self.async_abort(
+                reason="install_yandex_station",
+                description_placeholders={
+                    "url_yandex_station": "https://github.com/AlexxIT/YandexStation",
+                },
+            )
 
         if user_input:
             for entry in entries:
@@ -104,6 +109,10 @@ class YandexSmartHomeIntentsFlowHandler(ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id=step_id,
             errors=errors,
-            description_placeholders={"error_description": error_description or ""},
+            description_placeholders={
+                "error_description": error_description or "",
+                "url_copy_cookies_ext": "https://chrome.google.com/webstore/detail/copy-cookies/jcbpglbplpblnagieibnemmkiamekcdg",
+                "url_id_yandex": "https://id.yandex.ru",
+            },
             data_schema=vol.Schema({vol.Required(step_id): str}),
         )

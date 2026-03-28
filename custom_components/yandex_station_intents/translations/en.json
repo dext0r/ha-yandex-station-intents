@@ -1,7 +1,7 @@
 {
   "config": {
     "abort": {
-      "install_yandex_station": "Интеграция [Yandex.Station](https://github.com/AlexxIT/YandexStation) не установлена или не настроена"
+      "install_yandex_station": "Интеграция [Yandex.Station]({url_yandex_station}) не установлена или не настроена"
     },
     "error": {
       "cookies.invalid_format": "Это не похоже на JSON из расширения Copy Cookies",
@@ -16,7 +16,7 @@
       },
       "cookies": {
         "title": "Вход через cookies",
-        "description": "* Установите расширение [Copy Cookies](https://chrome.google.com/webstore/detail/copy-cookies/jcbpglbplpblnagieibnemmkiamekcdg) в Google Chrome или Yandex Browser\n* Войдите в профиль на [id.yandex.ru](https://id.yandex.ru)\n* Скопируйте сюда cookies с помощью расширения",
+        "description": "* Установите расширение [Copy Cookies]({url_copy_cookies_ext}) в Google Chrome или Yandex Browser\n* Войдите в профиль на [id.yandex.ru]({url_id_yandex})\n* Скопируйте сюда cookies с помощью расширения",
         "data": {
           "cookies": "Cookies JSON"
         }
