@@ -7,11 +7,13 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import InvalidStateError, ServiceNotFound
+from homeassistant.helpers.service import async_call_from_config
 from homeassistant.helpers.template import Template
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.util import dt
 
 from .const import (
+    CONF_INTENT_ACTION,
     CONF_INTENT_EXECUTE_COMMAND,
     CONF_INTENT_EXTRA_PHRASES,
     CONF_INTENT_SAY_PHRASE,
@@ -34,6 +36,7 @@ class Intent:
     say_phrase: str | None = None
     say_phrase_template: Template | None = None
     execute_command: Template | None = None
+    action: ConfigType | None = None
 
     @property
     def scenario_name(self) -> str:
@@ -102,6 +105,7 @@ class IntentManager:
                 say_phrase_template=say_phrase if isinstance(say_phrase, Template) else None,
                 trigger_phrases=[name, *config.get(CONF_INTENT_EXTRA_PHRASES, [])],
                 execute_command=config.get(CONF_INTENT_EXECUTE_COMMAND),
+                action=config.get(CONF_INTENT_ACTION),
             )
             self.intents.append(intent)
 
@@ -129,6 +133,9 @@ class IntentManager:
 
                 if intent.say_phrase_template:
                     await self._tts(intent, event_data, yandex_station_entity_id)
+
+                if intent.action:
+                    await async_call_from_config(self._hass, intent.action, variables=event_data)
             except (ServiceNotFound, InvalidStateError):
                 _LOGGER.warning(
                     f"В Home Assistant не найдена колонка для события {phrase!r}. "

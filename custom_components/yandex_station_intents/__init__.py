@@ -20,6 +20,7 @@ from .const import (
     CLEAR_CONFIRM_TEXT,
     CONF_ACCOUNTS,
     CONF_AUTOSYNC,
+    CONF_INTENT_ACTION,
     CONF_INTENT_EXECUTE_COMMAND,
     CONF_INTENT_EXTRA_PHRASES,
     CONF_INTENT_SAY_PHRASE,
@@ -106,6 +107,7 @@ CONFIG_SCHEMA = vol.Schema(
                                         ],
                                         vol.Optional(CONF_INTENT_SAY_PHRASE): string_or_template,
                                         vol.Optional(CONF_INTENT_EXECUTE_COMMAND): cv.template,
+                                        vol.Optional(CONF_INTENT_ACTION): cv.SERVICE_SCHEMA,
                                         vol.Optional(CONF_ACCOUNTS): vol.All(cv.ensure_list, [cv.string]),
                                     }
                                 ),
