@@ -60,7 +60,7 @@ jobs:
         run: uv run tox -e ${{ matrix.tox-env }}
 
   validate:
-    name: Validate for HACS
+    name: Validate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -70,3 +70,6 @@ jobs:
         with:
           category: integration
           ignore: brands
+
+      - name: hassfest validaton
+        uses: home-assistant/actions/hassfest@master
