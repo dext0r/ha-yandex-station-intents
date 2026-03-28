@@ -59,6 +59,9 @@ def intents_config_validate(intents_config: ConfigType) -> ConfigType:
         ):
             raise vol.Invalid(f"Недопустимо совместное использование execute_command и шаблонной say_phrase в {name!r}")
 
+    if len(intents_config) >= 200:
+        raise vol.Invalid("Достигнуто ограничение по количеству сценариев (не более 200)")
+
     return intents_config
 
 
