@@ -1,0 +1,6 @@
+{
+    "mypy.enabled": true,
+    "files.associations": {
+        "**/.config/*.yaml": "home-assistant"
+    }
+}
