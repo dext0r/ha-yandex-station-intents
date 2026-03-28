@@ -8,12 +8,23 @@ dependencies = [
 
 [dependency-groups]
 test = [
-    "pytest-homeassistant-custom-component==0.13.262",
-    "mypy-dev==1.17.0a2",
+    "pytest-homeassistant-custom-component==0.13.316",
+    "mypy==1.19.1",
 ]
 homeassistant = [
-    "homeassistant==2025.7.2",
+    "homeassistant==2026.2.3",
     "colorlog>=6.9.0",
+]
+homeassistant-components = [
+    "hassil>=3.5.0",
+    "home-assistant-intents>=2026.3.3",
+    "pyturbojpeg>=1.8.2",
+    "ha-ffmpeg>=3.2.2",
+
+    # assist_pipeline dependencies
+    "pymicro-vad==1.0.1",
+    "pyspeex-noise==1.0.2",
+    "mutagen>=1.47.0",
 ]
 lint = [
     "pre-commit==4.0.1",
