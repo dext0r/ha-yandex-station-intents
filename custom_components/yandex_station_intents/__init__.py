@@ -273,3 +273,5 @@ async def _async_setup_intents(
             break
         except Exception:
             _LOGGER.exception(f"Ошибка создания или обновления сценария {item.scenario_name!r}")
+        if index < len(intents) - 1:
+            await asyncio.sleep(90.0)
