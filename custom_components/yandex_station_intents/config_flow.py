@@ -1,17 +1,21 @@
 from enum import StrEnum
 from functools import lru_cache
 import json
-import logging
 
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import MAJOR_VERSION, MINOR_VERSION
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.typing import ConfigType
 import voluptuous as vol
 
-from . import DOMAIN, YandexSession
+from . import DOMAIN
 from .const import CONF_UID, CONF_X_TOKEN, YANDEX_STATION_DOMAIN
+from .yandex_session import PassportClient
 
-_LOGGER = logging.getLogger(__name__)
+
+@lru_cache
+def get_passport_client(hass: HomeAssistant) -> PassportClient:
+    return PassportClient(hass)
 
 
 class AuthMethod(StrEnum):
@@ -21,11 +25,6 @@ class AuthMethod(StrEnum):
 
 
 class YandexSmartHomeIntentsFlowHandler(ConfigFlow, domain=DOMAIN):
-    @property
-    @lru_cache  # noqa: B019
-    def _session(self) -> YandexSession:
-        return YandexSession(self.hass)
-
     async def async_step_user(self, user_input: ConfigType | None = None) -> ConfigFlowResult:
         if user_input is None:
             return self.async_show_form(
@@ -83,7 +82,7 @@ class YandexSmartHomeIntentsFlowHandler(ConfigFlow, domain=DOMAIN):
             return await self._show_form(str(AuthMethod.COOKIES), error_code="cookies.invalid_format")
 
         try:
-            x_token = await self._session.async_get_x_token(host, cookies)
+            x_token = await get_passport_client(self.hass).async_get_x_token(host, cookies)
         except Exception as e:
             return await self._show_form(str(AuthMethod.COOKIES), error_code="auth.error", error_description=str(e))
 
@@ -93,7 +92,7 @@ class YandexSmartHomeIntentsFlowHandler(ConfigFlow, domain=DOMAIN):
         x_token = user_input[AuthMethod.TOKEN]
 
         try:
-            account = await self._session.async_get_account_info(x_token)
+            account = await get_passport_client(self.hass).async_get_account_info(x_token)
         except Exception as e:
             return await self._show_form(str(AuthMethod.TOKEN), error_code="auth.error", error_description=str(e))
 

@@ -202,6 +202,10 @@ class YandexQuasar:
                 if self._is_supported_device(device_config):
                     self.devices.append(Device.from_dict(device_config))
 
+    async def async_save_session(self) -> None:
+        """Сохраняет сессию в ConfigEntry."""
+        await self._session.async_save_to_entry()
+
     async def async_get_scenarios(self) -> list[dict[str, Any]]:
         r = await self._session.get(f"{URL_USER}/scenarios")
         resp = await r.json()

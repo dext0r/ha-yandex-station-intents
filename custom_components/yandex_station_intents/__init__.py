@@ -33,7 +33,7 @@ from .const import (
 from .entry_data import ConfigEntryData
 from .yandex_intent import Intent, IntentManager
 from .yandex_quasar import Device, EventStream, YandexQuasar
-from .yandex_session import AuthException, YandexSession
+from .yandex_session import AuthError, YandexSession
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -184,13 +184,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     component: Component = hass.data[DOMAIN]
     session = YandexSession(hass, entry)
     try:
-        if not await session.async_validate() or CONF_UID not in entry.data:
-            await session.async_refresh()
+        if CONF_UID not in entry.data or not await session.async_verify():
+            await session.async_authenticate()
+            await session.async_save_to_entry()
 
         manager = IntentManager(hass, entry, component.get_intents_config(entry))
         quasar = YandexQuasar(session)
         await quasar.async_init()
     except Exception as e:
+        _LOGGER.exception("Неожиданная ошибка")
         raise ConfigEntryNotReady(e) from e
 
     entry_data = ConfigEntryData(entry, yaml_config=component.yaml_config, quasar=quasar, intent_manager=manager)
@@ -255,6 +257,7 @@ async def _async_setup_intents(
     await quasar.delete_stale_intents(intents)
 
     quasar_intents = await quasar.async_get_intents()
+    consecutive_errors = 0
 
     for item in intents:
         if not quasar.running:
@@ -266,10 +269,20 @@ async def _async_setup_intents(
                 intent_quasar_id=quasar_intents.get(item.name),
                 intent_player_device=intent_player_device,
             )
-        except AuthException:
+            consecutive_errors = 0
+        except AuthError:
             _LOGGER.exception(
                 f"Ошибка создания или обновления сценария {item.scenario_name!r}, синхронизация остановлена"
             )
             break
         except Exception:
             _LOGGER.exception(f"Ошибка создания или обновления сценария {item.scenario_name!r}")
+            consecutive_errors += 1
+
+            if consecutive_errors >= 4:
+                _LOGGER.exception(
+                    "Ошибка создания или обновления нескольких сценариев подряд, синхронизация остановлена"
+                )
+                break
+
+    await quasar.async_save_session()
