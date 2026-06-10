@@ -4,6 +4,7 @@ import json
 import logging
 
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+from homeassistant.const import MAJOR_VERSION, MINOR_VERSION
 from homeassistant.helpers.typing import ConfigType
 import voluptuous as vol
 
@@ -96,8 +97,14 @@ class YandexSmartHomeIntentsFlowHandler(ConfigFlow, domain=DOMAIN):
         except Exception as e:
             return await self._show_form(str(AuthMethod.TOKEN), error_code="auth.error", error_description=str(e))
 
-        await self.async_set_unique_id(account.display_login)
-        return self.async_create_entry(title=account.display_login, data={CONF_X_TOKEN: x_token, CONF_UID: account.uid})
+        config_data = {CONF_X_TOKEN: x_token, CONF_UID: account.uid}
+
+        if (int(MAJOR_VERSION), int(MINOR_VERSION)) >= (2025, 9):
+            existing_entry = await self.async_set_unique_id(account.display_login)
+            if existing_entry:  # +2025.9
+                return self.async_update_reload_and_abort(existing_entry, data=config_data, reason="reauth_successful")
+
+        return self.async_create_entry(title=account.display_login, data=config_data)
 
     async def _show_form(
         self, step_id: str, error_code: str | None = None, error_description: str | None = None

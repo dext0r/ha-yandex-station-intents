@@ -1,7 +1,8 @@
 {
   "config": {
     "abort": {
-      "install_yandex_station": "Интеграция [Yandex.Station]({url_yandex_station}) не установлена или не настроена"
+      "install_yandex_station": "Интеграция [Yandex.Station]({url_yandex_station}) не установлена или не настроена",
+      "reauth_successful": "Аутентификация прошла успешно"
     },
     "error": {
       "cookies.invalid_format": "Это не похоже на JSON из расширения Copy Cookies",
