@@ -1,2 +1,6 @@
 clear_scenarios:
-  description: Delete ALL scenarios from Yandex Smart Home.
+  fields:
+    confirm:
+      required: true
+      selector:
+        text:
