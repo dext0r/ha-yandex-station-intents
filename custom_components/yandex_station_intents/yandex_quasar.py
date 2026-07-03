@@ -1,13 +1,11 @@
-from __future__ import annotations
-
-from abc import ABC, abstractmethod
 from collections.abc import AsyncIterable
 from dataclasses import dataclass
 import json
 import logging
-from typing import Any, cast
+from typing import Any, Self, cast
 
 from aiohttp import ClientConnectorError, ClientResponseError, ClientWebSocketResponse, WSMessage, WSMsgType
+import dacite
 from homeassistant.components import media_player
 from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import HassJob, HomeAssistant
@@ -16,6 +14,8 @@ from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.typing import ConfigType
 
 from .const import DOMAIN, INTENT_ID_MARKER, YANDEX_STATION_DOMAIN
+from .schema.scenario import Scenario, ScenarioStep, ScenarioStepActionDevice, ScenarioStepItem, ScenarioVoiceTrigger
+from .schema.scenario_step_actions import ScenarioStepActionRequestedDeviceWithAssistant
 from .yandex_intent import Intent, IntentManager
 from .yandex_session import YandexSession
 
@@ -37,147 +37,14 @@ class Device:
     yandex_station_id: str | None = None
 
     @classmethod
-    def from_dict(cls, data: ConfigType) -> Device:
-        return Device(
+    def from_dict(cls, data: ConfigType) -> Self:
+        return cls(
             id=data["id"],
             name=data["name"],
             room=data.get("room_name"),
             entity_id=data.get("parameters", {}).get("device_info", {}).get("model"),
             yandex_station_id=data.get("quasar_info", {}).get("device_id"),
         )
-
-
-class ScenarioStepItem(ABC):
-    """
-    Действие в сценариях.
-    """
-
-    @property
-    @abstractmethod
-    def as_dict(self) -> ConfigType:
-        pass
-
-
-class ScenarioStep:
-    """Группа действий в сценариях."""
-
-    def __init__(self, *items: ScenarioStepItem):
-        self._items = items
-
-    @property
-    def as_dict(self) -> ConfigType:
-        return {
-            "type": "scenarios.steps.actions.v2",
-            "parameters": {"items": [i.as_dict for i in self._items]},
-        }
-
-
-class ScenarioStepItemDeviceChannel(ScenarioStepItem):
-    """
-    Действие "Канал X" для служебного плеера.
-    """
-
-    def __init__(self, device: Device, channel: int):
-        self._device = device
-        self._channel = channel
-
-    @property
-    def as_dict(self) -> ConfigType:
-        return {
-            "id": self._device.id,
-            "type": "step.action.item.device",
-            "value": {
-                "id": self._device.id,
-                "capabilities": [
-                    {
-                        "type": "devices.capabilities.range",
-                        "state": {
-                            "instance": "channel",
-                            "value": self._channel,
-                        },
-                    }
-                ],
-            },
-        }
-
-
-class ScenarioStepItemRequestedDevice(ScenarioStepItem, ABC):
-    """
-    Действия из раздела "Любое умное устройство, которое активирует сценарий"
-    """
-
-    @property
-    def as_dict(self) -> ConfigType:
-        return {
-            "id": "requested-device",
-            "type": "step.action.item.requested_device_with_assistant",
-            "value": self._value,
-        }
-
-    @property
-    @abstractmethod
-    def _value(self) -> ConfigType:
-        pass
-
-
-class ScenarioStepItemRequestedDeviceTTS(ScenarioStepItemRequestedDevice):
-    """
-    Проговаривает текст на колонке, действие не попадает в список событий.
-    В интерфейсе: "Прочитать текст вслух"
-    """
-
-    def __init__(self, text: str):
-        self._text = text
-
-    @property
-    def _value(self) -> ConfigType:
-        return {
-            "type": "devices.capabilities.quasar",
-            "state": {
-                "instance": "tts",
-                "value": {"text": self._text},
-            },
-        }
-
-
-class ScenarioStepItemRequestedDeviceTTSPA(ScenarioStepItemRequestedDevice):
-    """
-    Проговаривает текст на колонке, действие попадает в список событий.
-    В интерфейсе: отсутствует
-    """
-
-    def __init__(self, text: str):
-        self._text = text
-
-    @property
-    def _value(self) -> ConfigType:
-        return {
-            "type": "devices.capabilities.quasar.server_action",
-            "state": {
-                "instance": "phrase_action",
-                "value": self._text,
-            },
-        }
-
-
-class ScenarioStepItemRequestedDeviceTextAction(ScenarioStepItemRequestedDevice):
-    """
-    Выполняет команду на колонке.
-    В интерфейсе: "Ответить на вопрос или выполнить команду"
-    """
-
-    def __init__(self, command: str):
-        self._command = command
-
-    @property
-    def _value(self) -> ConfigType:
-        return {
-            "type": "devices.capabilities.quasar.server_action",
-            "state": {
-                "instance": "text_action",
-                "value": self._command,
-            },
-        }
 
 
 class YandexQuasar:
@@ -206,7 +73,8 @@ class YandexQuasar:
         """Сохраняет сессию в ConfigEntry."""
         await self._session.async_save_to_entry()
 
-    async def async_get_scenarios(self) -> list[dict[str, Any]]:
+    async def async_get_scenarios_json(self) -> list[Any]:
+        """Возвращает список всех сценариев в JSON."""
         r = await self._session.get(f"{URL_USER}/scenarios")
         resp = await r.json()
         assert resp["status"] == "ok", resp
@@ -214,49 +82,34 @@ class YandexQuasar:
 
         return resp["scenarios"]
 
-    async def async_get_intents(self) -> dict[str, str]:
-        """Получает список интентов, которые управляются компонентом."""
+    async def async_get_scenarios(self) -> list[Scenario]:
+        """Возвращает список всех сценариев."""
+        return [dacite.from_dict(Scenario, v) for v in await self.async_get_scenarios_json()]
+
+    async def async_get_intents(self) -> dict[str, Scenario]:
+        """Возвращает созданные интеграцией интенты."""
         _LOGGER.debug("Получение списка интентов")
 
         rv = {}
         for scenario in await self.async_get_scenarios():
-            if INTENT_ID_MARKER not in scenario["name"]:
+            if INTENT_ID_MARKER not in scenario.name:
                 continue
 
-            rv[scenario["name"].replace(f"{INTENT_ID_MARKER}", "").strip()] = scenario["id"]
+            rv[scenario.name.replace(f"{INTENT_ID_MARKER}", "").strip()] = scenario
 
         return rv
 
     async def async_add_or_update_intent(
-        self, intent: Intent, intent_quasar_id: str | None, intent_player_device: Device | None
+        self,
+        intent: Intent,
+        intent_player_device: Device | None,
+        existing_scenario: Scenario | None,
     ) -> None:
-        steps: list[ScenarioStep] = []
+        payload = get_scenario(intent, intent_player_device).as_dict()
 
-        if intent_player_device:
-            step_items: list[ScenarioStepItem] = [ScenarioStepItemDeviceChannel(intent_player_device, intent.id)]
-            if intent.say_phrase:
-                step_items.insert(0, ScenarioStepItemRequestedDeviceTTS(intent.say_phrase))
-            steps = [ScenarioStep(*step_items)]
-        elif intent.say_phrase and intent.execute_command:
-            steps = [
-                ScenarioStep(ScenarioStepItemRequestedDeviceTTS(intent.say_phrase)),
-                ScenarioStep(ScenarioStepItemRequestedDeviceTextAction(intent.scenario_text_command)),
-            ]
-        elif intent.say_phrase:
-            steps = [ScenarioStep(ScenarioStepItemRequestedDeviceTTSPA(intent.scenario_text_command))]
-        else:
-            steps = [ScenarioStep(ScenarioStepItemRequestedDeviceTextAction(intent.scenario_text_command))]
-
-        payload = {
-            "name": intent.scenario_name,
-            "icon": "home",
-            "triggers": [{"type": "scenario.trigger.voice", "value": v} for v in intent.trigger_phrases],
-            "steps": [s.as_dict for s in steps],
-        }
-
-        if intent_quasar_id:
+        if existing_scenario:
             _LOGGER.debug(f"Обновление сценария {intent.scenario_name!r}: {payload}")
-            r = await self._session.put(f"{URL_V4_USER}/scenarios/{intent_quasar_id}", json=payload)
+            r = await self._session.put(f"{URL_V4_USER}/scenarios/{existing_scenario.id}", json=payload)
         else:
             _LOGGER.debug(f"Создание сценария {intent.scenario_name!r}: {payload}")
             r = await self._session.post(f"{URL_V4_USER}/scenarios", json=payload)
@@ -273,22 +126,18 @@ class YandexQuasar:
 
     async def delete_stale_intents(self, active_intents: list[Intent]) -> None:
         quasar_intents = await self.async_get_intents()
-        for intent_name, intent_id in quasar_intents.items():
+        for intent_name, scenario in quasar_intents.items():
             if intent_name not in [i.name for i in active_intents]:
                 try:
                     _LOGGER.debug(f"Удаление сценария {intent_name!r}")
-                    r = await self._session.delete(f"{URL_USER}/scenarios/{intent_id}")
+                    r = await self._session.delete(f"{URL_USER}/scenarios/{scenario.id}")
                     resp = await r.json()
                     assert resp["status"] == "ok", resp
                 except Exception:
                     _LOGGER.exception(f"Ошибка удаления сценария {intent_name!r}")
 
     async def clear_scenarios(self) -> None:
-        r = await self._session.get(f"{URL_USER}/scenarios")
-        resp = await r.json()
-        assert resp["status"] == "ok", resp
-
-        for scenario in resp["scenarios"]:
+        for scenario in await self.async_get_scenarios_json():
             if not self.running:
                 break
             scenario_id = scenario["id"]
@@ -421,3 +270,43 @@ class EventStream:
                             event_data[ATTR_ENTITY_ID] = yandex_station_entity_id
 
                     await self._manager.async_handle_phrase(cap_state["value"], event_data, yandex_station_entity_id)
+
+
+def get_scenario(intent: Intent, intent_player_device: Device | None) -> Scenario:
+    """Формирует сценарий УДЯ из интента."""
+    steps: list[ScenarioStep | Any] = []
+
+    if intent_player_device:
+        step_items: list[ScenarioStepItem] = []
+
+        if intent.say_phrase:
+            step_items.append(ScenarioStepActionRequestedDeviceWithAssistant.tts(intent.say_phrase))
+        step_items.append(ScenarioStepActionDevice.set_channel(intent_player_device.id, intent.id))
+
+        steps = [ScenarioStep.with_items(step_items)]
+    elif intent.say_phrase and intent.execute_command:
+        steps = [
+            ScenarioStep.with_items([ScenarioStepActionRequestedDeviceWithAssistant.tts(intent.say_phrase)]),
+            ScenarioStep.with_items(
+                [ScenarioStepActionRequestedDeviceWithAssistant.text_action(intent.scenario_text_command)]
+            ),
+        ]
+    elif intent.say_phrase:
+        steps = [
+            ScenarioStep.with_items(
+                [ScenarioStepActionRequestedDeviceWithAssistant.tts_pa(intent.scenario_text_command)]
+            )
+        ]
+    else:
+        steps = [
+            ScenarioStep.with_items(
+                [ScenarioStepActionRequestedDeviceWithAssistant.text_action(intent.scenario_text_command)]
+            )
+        ]
+
+    return Scenario(
+        name=intent.scenario_name,
+        icon="home",
+        triggers=[ScenarioVoiceTrigger(value=v) for v in intent.trigger_phrases],
+        steps=steps,
+    )

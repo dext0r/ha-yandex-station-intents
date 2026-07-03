@@ -1,3 +1,4 @@
+from collections.abc import Awaitable
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -11,14 +12,15 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: ConfigE
     component: Component = hass.data[DOMAIN]
     entry_data = component.entry_datas[entry.entry_id]
 
-    try:
-        scenarios: Any = await entry_data.quasar.async_get_scenarios()
-    except Exception as e:
-        scenarios = e
+    async def _safe(awaitable: Awaitable[Any]) -> Any:
+        try:
+            return await awaitable
+        except Exception as e:
+            return e
 
     return {
         "yaml_config": component.yaml_config,
         "devices": entry_data.quasar.devices,
-        "scenarios": scenarios,
+        "scenarios": await _safe(entry_data.quasar.async_get_scenarios()),
         "intents": entry_data.intent_manager.intents,
     }

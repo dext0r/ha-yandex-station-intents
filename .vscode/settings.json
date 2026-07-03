@@ -1,4 +1,8 @@
 {
+    "python.testing.pytestArgs": [
+        "."
+    ],
+    "python.testing.pytestEnabled": true,
     "mypy.enabled": true,
     "files.associations": {
         "**/.config/*.yaml": "home-assistant"

@@ -80,7 +80,7 @@ reportIncompatibleVariableOverride = "none"
 
 [tool.mypy]
 python_version = "3.13"
-follow_imports_for_stubs = true
+follow_untyped_imports = true
 local_partial_types = true
 strict_equality = true
 warn_redundant_casts = true
@@ -101,6 +101,10 @@ exclude = [
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_calls = false
 
 [tool.tox]
 env_list = [

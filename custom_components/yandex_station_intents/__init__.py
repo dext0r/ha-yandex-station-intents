@@ -266,8 +266,8 @@ async def _async_setup_intents(
         try:
             await quasar.async_add_or_update_intent(
                 intent=item,
-                intent_quasar_id=quasar_intents.get(item.name),
                 intent_player_device=intent_player_device,
+                existing_scenario=quasar_intents.get(item.name),
             )
             consecutive_errors = 0
         except AuthError:
