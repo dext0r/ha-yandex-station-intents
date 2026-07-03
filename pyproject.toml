@@ -94,13 +94,13 @@ disallow_untyped_decorators = true
 disallow_untyped_defs = true
 warn_return_any = true
 warn_unreachable = true
+exclude = [
+    "custom_components/yandex_smart_home",
+    "custom_components/yandex_station",
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-
-[[tool.mypy.overrides]]
-module = "custom_components.yandex_station.*"
-ignore_errors = true
 
 [tool.tox]
 env_list = [
