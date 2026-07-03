@@ -36,7 +36,7 @@ class Scenario:
     name: str
     icon: str = "home"
     triggers: list[ScenarioVoiceTrigger | dict[Any, Any]]
-    steps: list[ScenarioStep]
+    steps: list[ScenarioStep | dict[Any, Any]]
 
     def as_dict(self) -> dict[str, Any]:
         def skip_none(obj: Iterable[tuple[str, Any]]) -> dict[str, str]:

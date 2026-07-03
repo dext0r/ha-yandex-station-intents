@@ -420,6 +420,9 @@
                         }
                     ]
                 }
+            },
+            {
+                "type": "scenarios.steps.actions.foo"
             }
         ],
         "is_active": true,

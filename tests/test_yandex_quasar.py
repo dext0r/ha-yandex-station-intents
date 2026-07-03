@@ -153,12 +153,16 @@ async def test_async_get_scenarios(hass: HomeAssistant, aioclient_mock: AiohttpC
     )
 
     user_scenario = scenarios[5]
-    assert len(user_scenario.steps) == 1
+    assert len(user_scenario.steps) == 2
 
     step = user_scenario.steps[0]
+    assert isinstance(step, ScenarioStep)
     assert step.type == "scenarios.steps.actions.v2"
     assert len(step.parameters.items) == 1
     assert isinstance(step.parameters.items[0], dict)
+
+    step = user_scenario.steps[1]
+    assert isinstance(step, dict)
 
 
 async def test_get_scenario(hass: HomeAssistant) -> None:
