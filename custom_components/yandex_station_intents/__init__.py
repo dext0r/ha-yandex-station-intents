@@ -1,4 +1,3 @@
-import asyncio
 from dataclasses import dataclass
 import logging
 import re
@@ -153,18 +152,15 @@ async def async_setup(hass: HomeAssistant, yaml_config: ConfigType) -> bool:
         for entry in hass.config_entries.async_entries(DOMAIN):
             await hass.config_entries.async_reload(entry.entry_id)
 
-        await asyncio.gather(
-            *(
-                _async_setup_intents(
-                    entry_data.intent_manager.intents,
-                    entry_data.quasar,
-                    entry_data.quasar.get_intent_player_device(entry_data.media_player_entity_id),
+        for entry_data in component.entry_datas.values():
+            if not entry_data.autosync:
+                await entry_data.async_run_or_replace_task(
+                    _async_sync_intents(
+                        entry_data.intent_manager.intents,
+                        entry_data.quasar,
+                        entry_data.quasar.get_intent_player_device(entry_data.media_player_entity_id),
+                    )
                 )
-                for entry_data in component.entry_datas.values()
-                if not entry_data.autosync
-            ),
-            return_exceptions=True,
-        )
 
     async_register_admin_service(hass, DOMAIN, SERVICE_RELOAD, _handle_reload)
 
@@ -173,7 +169,7 @@ async def async_setup(hass: HomeAssistant, yaml_config: ConfigType) -> bool:
             raise HomeAssistantError("Необходимо подтверждение, ознакомьтесь с документацией")
 
         for entry_data in component.entry_datas.values():
-            await entry_data.quasar.clear_scenarios()
+            await entry_data.async_run_or_replace_task(entry_data.quasar.clear_scenarios())
 
     hass.services.async_register(DOMAIN, "clear_scenarios", _clear_scenarios)
 
@@ -227,7 +223,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         entry.async_on_unload(hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, event_stream.disconnect))
 
     if entry_data.autosync:
-        hass.loop.create_task(_async_setup_intents(manager.intents, quasar, intent_player_device))
+        await entry_data.async_run_or_replace_task(_async_sync_intents(manager.intents, quasar, intent_player_device))
 
     return True
 
@@ -235,7 +231,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     component: Component = hass.data[DOMAIN]
     entry_data = component.entry_datas[entry.entry_id]
-    entry_data.quasar.stop()
+    await entry_data.async_stop_task()
 
     if entry_data.event_stream:
         hass.async_create_task(entry_data.event_stream.disconnect())
@@ -251,7 +247,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
-async def _async_setup_intents(
+async def _async_sync_intents(
     intents: list[Intent], quasar: YandexQuasar, intent_player_device: Device | None = None
 ) -> None:
     await quasar.delete_stale_intents(intents)
@@ -260,9 +256,6 @@ async def _async_setup_intents(
     consecutive_errors = 0
 
     for item in intents:
-        if not quasar.running:
-            break
-
         try:
             await quasar.async_add_or_update_intent(
                 intent=item,

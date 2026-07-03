@@ -52,7 +52,6 @@ class YandexQuasar:
         self._session = session
 
         self.devices: list[Device] = []
-        self.running = True
 
     async def async_init(self) -> None:
         _LOGGER.debug("Получение списка устройств")
@@ -138,8 +137,6 @@ class YandexQuasar:
 
     async def clear_scenarios(self) -> None:
         for scenario in await self.async_get_scenarios_json():
-            if not self.running:
-                break
             scenario_id = scenario["id"]
             scenario_name = scenario["name"]
             try:
@@ -149,9 +146,6 @@ class YandexQuasar:
                 assert resp["status"] == "ok", resp
             except Exception:
                 _LOGGER.exception(f"Ошибка удаления сценария {scenario_name!r}")
-
-    def stop(self) -> None:
-        self.running = False
 
     @staticmethod
     def _is_supported_device(device: ConfigType) -> bool:
