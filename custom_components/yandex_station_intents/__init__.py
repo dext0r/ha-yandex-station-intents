@@ -28,6 +28,8 @@ from .const import (
     CONF_UID,
     DOMAIN,
     SERVICE_CLEAR_SCENARIOS,
+    SERVICE_SYNC,
+    SYNC_FULL_KEY,
     ConnectionMode,
 )
 from .entry_data import ConfigEntryData
@@ -179,6 +181,26 @@ async def async_setup(hass: HomeAssistant, yaml_config: ConfigType) -> bool:
         schema=vol.Schema({vol.Required(CLEAR_CONFIRM_KEY): cv.string}),
     )
 
+    async def _sync(service: ServiceCall) -> None:
+        full = service.data[SYNC_FULL_KEY]
+
+        for entry_data in component.entry_datas.values():
+            await entry_data.async_run_or_replace_task(
+                _async_sync_intents(
+                    entry_data.intent_manager.intents,
+                    entry_data.quasar,
+                    entry_data.quasar.get_intent_player_device(entry_data.media_player_entity_id),
+                    full=full,
+                )
+            )
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SYNC,
+        _sync,
+        schema=vol.Schema({vol.Optional(SYNC_FULL_KEY, default=False): cv.boolean}),
+    )
+
     return True
 
 
@@ -254,7 +276,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def _async_sync_intents(
-    intents: list[Intent], quasar: YandexQuasar, intent_player_device: Device | None = None
+    intents: list[Intent],
+    quasar: YandexQuasar,
+    intent_player_device: Device | None = None,
+    *,
+    full: bool = False,
 ) -> None:
     await quasar.delete_stale_intents(intents)
 
@@ -267,6 +293,7 @@ async def _async_sync_intents(
                 intent=item,
                 intent_player_device=intent_player_device,
                 existing_scenario=quasar_intents.get(item.name),
+                force=full,
             )
             consecutive_errors = 0
         except AuthError:

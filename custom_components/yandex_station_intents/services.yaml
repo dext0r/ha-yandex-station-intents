@@ -1,3 +1,10 @@
+sync:
+  fields:
+    full:
+      default: false
+      selector:
+        boolean:
+
 clear_scenarios:
   fields:
     confirm:

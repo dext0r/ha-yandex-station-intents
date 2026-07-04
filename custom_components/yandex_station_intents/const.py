@@ -23,6 +23,9 @@ SERVICE_CLEAR_SCENARIOS = "clear_scenarios"
 CLEAR_CONFIRM_KEY = "confirm"
 CLEAR_CONFIRM_TEXT = "я действительно хочу удалить все сценарии из удя"
 
+SERVICE_SYNC = "sync"
+SYNC_FULL_KEY = "full"
+
 EVENT_NAME = "yandex_intent"
 
 

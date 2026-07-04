@@ -103,9 +103,15 @@ class YandexQuasar:
         intent: Intent,
         intent_player_device: Device | None,
         existing_scenario: Scenario | None,
+        force: bool = False,
     ) -> None:
-        payload = get_scenario(intent, intent_player_device).as_dict()
+        scenario = get_scenario(intent, intent_player_device)
 
+        if existing_scenario and not force and scenario == existing_scenario:
+            _LOGGER.debug(f"Сценарий {intent.scenario_name!r} не изменился, пропуск")
+            return
+
+        payload = scenario.as_dict()
         if existing_scenario:
             _LOGGER.debug(f"Обновление сценария {intent.scenario_name!r}: {payload}")
             r = await self._session.put(f"{URL_V4_USER}/scenarios/{existing_scenario.id}", json=payload)
