@@ -27,6 +27,7 @@ from .const import (
     CONF_MODE,
     CONF_UID,
     DOMAIN,
+    SERVICE_CLEAR_SCENARIOS,
     ConnectionMode,
 )
 from .entry_data import ConfigEntryData
@@ -165,13 +166,18 @@ async def async_setup(hass: HomeAssistant, yaml_config: ConfigType) -> bool:
     async_register_admin_service(hass, DOMAIN, SERVICE_RELOAD, _handle_reload)
 
     async def _clear_scenarios(service: ServiceCall) -> None:
-        if service.data.get(CLEAR_CONFIRM_KEY, "").lower() != CLEAR_CONFIRM_TEXT:
+        if service.data[CLEAR_CONFIRM_KEY].lower() != CLEAR_CONFIRM_TEXT:
             raise HomeAssistantError("Необходимо подтверждение, ознакомьтесь с документацией")
 
         for entry_data in component.entry_datas.values():
             await entry_data.async_run_or_replace_task(entry_data.quasar.clear_scenarios())
 
-    hass.services.async_register(DOMAIN, "clear_scenarios", _clear_scenarios)
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_CLEAR_SCENARIOS,
+        _clear_scenarios,
+        schema=vol.Schema({vol.Required(CLEAR_CONFIRM_KEY): cv.string}),
+    )
 
     return True
 
