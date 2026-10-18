@@ -171,7 +171,10 @@ class YandexQuasar:
             return True
 
         # Служебный плеер для mode=device
-        return DOMAIN in device.get("parameters", {}).get("device_info", {}).get("model", "")
+        try:
+            return DOMAIN in device.get("parameters", {}).get("device_info", {}).get("model", "")
+        except AttributeError:
+            return False
 
 
 class EventStream:
